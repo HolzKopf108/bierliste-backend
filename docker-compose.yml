@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: ${POSTGRES_CONTAINER_NAME}
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend_net
+
+  backend:
+    build: .
+    container_name: ${BACKEND_CONTAINER_NAME}
+    restart: always
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bierliste.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.bierliste.entrypoints=websecure"
+      - "traefik.http.routers.bierliste.tls.certresolver=le"
+      - "traefik.http.services.bierliste.loadbalancer.server.port=8080"
+    networks:
+      - web
+      - backend_net
+
+volumes:
+  pgdata:
+
+networks:
+  web:
+    external: true
+  backend_net:
+    driver: bridge
