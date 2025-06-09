@@ -22,6 +22,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=web"
       - "traefik.http.routers.bierliste.rule=Host(`${TRAEFIK_DOMAIN}`)"
       - "traefik.http.routers.bierliste.entrypoints=websecure"
       - "traefik.http.routers.bierliste.tls.certresolver=le"
