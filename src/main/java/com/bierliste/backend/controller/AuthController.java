@@ -37,6 +37,12 @@ public class AuthController {
         ));
     }
 
+    @PostMapping("/resend")
+    public ResponseEntity<?> resend(@RequestBody Map<String, String> body) {
+        authService.resend(body.get("email"));
+        return ResponseEntity.ok(Map.of("message", "Code erneut gesendet"));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<Map<String,String>> login(@Valid @RequestBody LoginDto dto) {
         var resp = authService.login(dto);

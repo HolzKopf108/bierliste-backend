@@ -40,7 +40,7 @@ public class AuthService {
     @Transactional
     public void register(RegisterDto dto) {
         if (userRepo.existsByEmail(dto.getEmail())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "E-Mail bereits vergeben");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email bereits vergeben");
         }
 
         User user = new User();
@@ -64,16 +64,23 @@ public class AuthService {
         return new AuthResponse(accessToken, refreshToken.getToken());
     }
 
+    public void resend(String email) {
+        User user = userRepo.findByEmail(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
+
+        verificationService.createAndSend(user);
+    }
+
     public AuthResponse login(LoginDto dto) {
         User user = userRepo.findByEmail(dto.getEmail())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
 
-        if (!user.isEmailVerified()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "E-Mail nicht verifiziert");
-        }
-
         authManager.authenticate(new UsernamePasswordAuthenticationToken(dto.getEmail(), dto.getPassword()));
-
+        
+        if (!user.isEmailVerified()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email nicht verifiziert");
+        }
+            
         String accessToken = jwtProvider.createAccessToken(user);
         RefreshToken refreshToken = refreshService.create(user);
         return new AuthResponse(accessToken, refreshToken.getToken());

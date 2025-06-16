@@ -25,6 +25,7 @@ public class RefreshTokenService {
     @Transactional
     public RefreshToken create(User user) {
         repository.deleteByUser(user);
+        repository.flush();
 
         RefreshToken token = new RefreshToken();
         token.setUser(user);

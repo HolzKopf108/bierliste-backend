@@ -28,6 +28,7 @@ public class VerificationService {
     @Transactional
     public void createAndSend(User user) {
         repo.deleteByUser(user);
+        repo.flush();
 
         VerificationToken vt = new VerificationToken();
         vt.setUser(user);
@@ -43,14 +44,15 @@ public class VerificationService {
         VerificationToken vt = repo.findByUserEmail(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kein Verifizierungscode zur Email-Adresse gefunden"));
 
+        if (!vt.getCode().equals(code)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falscher Verifizierungscode");
+        }
+
         if (vt.getExpiryDate().isBefore(Instant.now())) {
             repo.delete(vt);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Code abgelaufen");
         }
 
-        if (!vt.getCode().equals(code)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falscher Verifizierungscode");
-        }
 
         User user = vt.getUser();
         user.setEmailVerified(true);
