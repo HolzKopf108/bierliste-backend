@@ -9,6 +9,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 import jakarta.validation.Valid;
 import java.util.Map;
+
+import com.bierliste.backend.dto.GoogleLoginDto;
 import com.bierliste.backend.dto.LoginDto;
 import com.bierliste.backend.dto.RegisterDto;
 import com.bierliste.backend.service.AuthService;
@@ -51,6 +53,16 @@ public class AuthController {
             "refreshToken", resp.refreshToken()
         ));
     }
+
+    @PostMapping("/google")
+    public ResponseEntity<Map<String,String>> loginWithGoogle(@RequestBody GoogleLoginDto dto) {
+        var resp = authService.loginGoogle(dto.getIdToken());
+        return ResponseEntity.ok(Map.of(
+            "accessToken", resp.accessToken(),
+            "refreshToken", resp.refreshToken()
+        ));
+    }
+
 
     @PostMapping("/refresh")
     public ResponseEntity<Map<String,String>> refresh(@RequestBody Map<String,String> body) {

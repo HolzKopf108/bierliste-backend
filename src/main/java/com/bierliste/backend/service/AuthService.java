@@ -6,6 +6,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import com.bierliste.backend.dto.LoginDto;
 import com.bierliste.backend.dto.RegisterDto;
@@ -13,6 +14,11 @@ import com.bierliste.backend.model.RefreshToken;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.repository.UserRepository;
 import com.bierliste.backend.security.JwtTokenProvider;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import java.util.Collections;
 
 @Service
 public class AuthService {
@@ -22,6 +28,8 @@ public class AuthService {
     private final RefreshTokenService refreshService;
     private final VerificationService verificationService;
     private final AuthenticationManager authManager;
+    @Value("${google.client-id}")
+    private String googleClientId;
 
     public AuthService(UserRepository userRepo,
                        PasswordEncoder pwdEnc,
@@ -84,6 +92,47 @@ public class AuthService {
         String accessToken = jwtProvider.createAccessToken(user);
         RefreshToken refreshToken = refreshService.create(user);
         return new AuthResponse(accessToken, refreshToken.getToken());
+    }
+
+    public AuthResponse loginGoogle(String idTokenString) {
+        GoogleIdToken.Payload payload = verifyGoogleIdToken(idTokenString);
+
+        if (payload == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Ungültiges Google ID-Token");
+        }
+
+        String email = payload.getEmail();
+        String name = (String) payload.get("name");
+
+        User user = userRepo.findByEmail(email).orElseGet(() -> {
+            User newUser = new User();
+            newUser.setEmail(email);
+            newUser.setUsername(name != null ? name : email.split("@")[0]);
+            newUser.setPasswordHash("GOOGLE_USER"); 
+            newUser.setEmailVerified(true);
+            return userRepo.save(newUser);
+        });
+
+        String accessToken = jwtProvider.createAccessToken(user);
+        RefreshToken refreshToken = refreshService.create(user);
+        return new AuthResponse(accessToken, refreshToken.getToken());
+    }
+
+    private GoogleIdToken.Payload verifyGoogleIdToken(String idTokenString) {
+        try {
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    GoogleNetHttpTransport.newTrustedTransport(),
+                    GsonFactory.getDefaultInstance()
+            )
+            .setAudience(Collections.singletonList(googleClientId))
+            .build();
+
+            GoogleIdToken idToken = verifier.verify(idTokenString);
+            return idToken != null ? idToken.getPayload() : null;
+
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public AuthResponse refresh(String tokenStr) {
