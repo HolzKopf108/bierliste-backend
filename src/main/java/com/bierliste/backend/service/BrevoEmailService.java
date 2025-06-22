@@ -71,10 +71,10 @@ public class BrevoEmailService {
 
                 Falls du dein Passwort nicht zurücksetzen möchtest, kannst du diese E-Mail ignorieren.
 
-                Diese E-Mail wurde im Zusammenhang mit dem Zurücksetzen deines Passworts bei Bierliste versendet.
-
                 Beste Grüße  
                 Dein Bierliste-Team
+
+                Diese E-Mail wurde im Zusammenhang mit dem Zurücksetzen deines Passworts bei Bierliste versendet.
                 """.formatted(user.getUsername(), code);
 
             html = """
@@ -91,9 +91,9 @@ public class BrevoEmailService {
                 <p style="font-size: 1.5em; font-weight: bold;">%s</p>
                 <p>Der Code ist nur für kurze Zeit gültig. Warte also nicht zu lange, um dein Passwort zurückzusetzen.</p>
                 <p>Falls du dein Passwort nicht zurücksetzen möchtest, kannst du diese E-Mail ignorieren.</p>
+                <p>Beste Grüße<br>Dein Bierliste-Team</p>
                 <hr>
                 <p style="font-size: 0.9em; color: #888;">Diese E-Mail wurde im Zusammenhang mit dem Zurücksetzen deines Passworts bei Bierliste versendet.</p>
-                <p style="font-size: 0.9em; color: #888;">Beste Grüße<br>Dein Bierliste-Team</p>
                 </body>
                 </html>
                 """.formatted(user.getUsername(), code);
@@ -114,10 +114,10 @@ public class BrevoEmailService {
 
                 Falls du dich nicht bei Bierliste registriert hast, kannst du diese E-Mail ignorieren.
 
-                Diese E-Mail wurde im Zusammenhang mit deiner Registrierung bei Bierliste versendet.
-
                 Beste Grüße  
                 Dein Bierliste-Team
+                
+                Diese E-Mail wurde im Zusammenhang mit deiner Registrierung bei Bierliste versendet.
                 """.formatted(user.getUsername(), code);
 
 
@@ -135,9 +135,9 @@ public class BrevoEmailService {
                 <p style="font-size: 1.5em; font-weight: bold;">%s</p>
                 <p>Der Code ist nur für kurze Zeit gültig. Warte also nicht zu lange, um deine Registrierung abzuschließen.</p>
                 <p>Falls du dich nicht bei Bierliste registriert hast, kannst du diese E-Mail ignorieren.</p>
+                <p>Beste Grüße<br>Dein Bierliste-Team</p>
                 <hr>
                 <p style="font-size: 0.9em; color: #888;">Diese E-Mail wurde im Zusammenhang mit deiner Registrierung bei Bierliste versendet.</p>
-                <p style="font-size: 0.9em; color: #888;">Beste Grüße<br>Dein Bierliste-Team</p>
                 </body>
                 </html>
                 """.formatted(user.getUsername(), code);
