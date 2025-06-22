@@ -22,6 +22,7 @@ public class UserService {
         this.refreshService = refreshService;
     }
 
+    @Transactional
     public void logout(String refreshToken) {
         refreshService.delete(refreshToken);
     }
