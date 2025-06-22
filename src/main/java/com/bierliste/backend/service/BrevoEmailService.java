@@ -52,45 +52,96 @@ public class BrevoEmailService {
         }
     }
 
-    public void sendVerificationEmailBrevo(User user, String code) {
-        String subject = "Ihr Verifizierungscode für Bierliste";
+    public void sendVerificationEmailBrevo(User user, String code, boolean resetPassword) {
+        String subject, plainText, html;
+        
+        if(resetPassword) {
+            subject = "Dein Resetcode für Bierliste";
 
-        String plainText = """
-            Hey %s,
+            plainText = """
+                Hey %s,
 
-            vielen Dank für deine Registrierung bei Bierliste!
+                hier ist dein Resetcode, um dein Passwort bei Bierliste zurückzusetzen!
 
-            Um dein Benutzerkonto zu verifizieren, gib bitte den folgenden Bestätigungscode in der App ein:
+                Gib bitte den folgenden Bestätigungscode in der App ein, um fortzufahren:
 
-            >> %s <<
+                >> %s <<
 
-            Der Code ist nur für kurze Zeit gültig. Also warte nicht zu lang, um deine Registrierung abzuschließen.
+                Der Code ist nur für kurze Zeit gültig. Warte also nicht zu lange, um dein Passwort zurückzusetzen.
 
-            Falls du dich nicht bei Bierliste registriert hast, kannst du diese E-Mail ignorieren.
+                Falls du dein Passwort nicht zurücksetzen möchtest, kannst du diese E-Mail ignorieren.
 
-            Beste Grüße
-            Dein Bierliste-Team
-            """.formatted(user.getUsername(), code);
+                Diese E-Mail wurde im Zusammenhang mit dem Zurücksetzen deines Passworts bei Bierliste versendet.
 
-        String html = """
-            <!DOCTYPE html>
-            <html lang="de">
-            <head>
-              <meta charset="UTF-8">
-              <title>Verifizierung bei Bierliste</title>
-            </head>
-            <body style="font-family: sans-serif; color: #333; line-height: 1.6;">
-              <h2>Hallo <strong>%s</strong>,</h2>
-              <p>vielen Dank für deine Registrierung bei <strong>Bierliste</strong>!</p>
-              <p>Gib bitte den folgenden Bestätigungscode in der App ein, um dein Benutzerkonto zu verifizieren:</p>
-              <p style="font-size: 1.5em; font-weight: bold;">%s</p>
-              <p>Der Code ist nur für kurze Zeit gültig. Bitte schließe deine Registrierung zeitnah ab.</p>
-              <p>Falls du dich nicht registriert hast, kannst du diese Mail ignorieren.</p>
-              <hr>
-              <p style="font-size: 0.9em; color: #888;">Diese E-Mail wurde im Zusammenhang mit deiner Registrierung bei Bierliste versendet.</p>
-            </body>
-            </html>
-            """.formatted(user.getUsername(), code);
+                Beste Grüße  
+                Dein Bierliste-Team
+                """.formatted(user.getUsername(), code);
+
+            html = """
+                <!DOCTYPE html>
+                <html lang="de">
+                <head>
+                <meta charset="UTF-8">
+                <title>Passwort zurücksetzen bei Bierliste</title>
+                </head>
+                <body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+                <h2>Hey <strong>%s</strong>,</h2>
+                <p>hier ist dein Resetcode, um dein Passwort bei <strong>Bierliste</strong> zurückzusetzen!</p>
+                <p>Gib bitte den folgenden Bestätigungscode in der App ein, um fortzufahren:</p>
+                <p style="font-size: 1.5em; font-weight: bold;">%s</p>
+                <p>Der Code ist nur für kurze Zeit gültig. Warte also nicht zu lange, um dein Passwort zurückzusetzen.</p>
+                <p>Falls du dein Passwort nicht zurücksetzen möchtest, kannst du diese E-Mail ignorieren.</p>
+                <hr>
+                <p style="font-size: 0.9em; color: #888;">Diese E-Mail wurde im Zusammenhang mit dem Zurücksetzen deines Passworts bei Bierliste versendet.</p>
+                <p style="font-size: 0.9em; color: #888;">Beste Grüße<br>Dein Bierliste-Team</p>
+                </body>
+                </html>
+                """.formatted(user.getUsername(), code);
+
+        } else {
+            subject = "Ihr Verifizierungscode für Bierliste";
+
+            plainText = """
+                Hey %s,
+
+                vielen Dank für deine Registrierung bei Bierliste!
+
+                Um dein Benutzerkonto zu verifizieren, gib bitte den folgenden Bestätigungscode in der App ein:
+
+                >> %s <<
+
+                Der Code ist nur für kurze Zeit gültig. Warte also nicht zu lange, um deine Registrierung abzuschließen.
+
+                Falls du dich nicht bei Bierliste registriert hast, kannst du diese E-Mail ignorieren.
+
+                Diese E-Mail wurde im Zusammenhang mit deiner Registrierung bei Bierliste versendet.
+
+                Beste Grüße  
+                Dein Bierliste-Team
+                """.formatted(user.getUsername(), code);
+
+
+            html = """
+                <!DOCTYPE html>
+                <html lang="de">
+                <head>
+                <meta charset="UTF-8">
+                <title>Verifizierung bei Bierliste</title>
+                </head>
+                <body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+                <h2>Hey <strong>%s</strong>,</h2>
+                <p>vielen Dank für deine Registrierung bei <strong>Bierliste</strong>!</p>
+                <p>Um dein Benutzerkonto zu verifizieren, gib bitte den folgenden Bestätigungscode in der App ein:</p>
+                <p style="font-size: 1.5em; font-weight: bold;">%s</p>
+                <p>Der Code ist nur für kurze Zeit gültig. Warte also nicht zu lange, um deine Registrierung abzuschließen.</p>
+                <p>Falls du dich nicht bei Bierliste registriert hast, kannst du diese E-Mail ignorieren.</p>
+                <hr>
+                <p style="font-size: 0.9em; color: #888;">Diese E-Mail wurde im Zusammenhang mit deiner Registrierung bei Bierliste versendet.</p>
+                <p style="font-size: 0.9em; color: #888;">Beste Grüße<br>Dein Bierliste-Team</p>
+                </body>
+                </html>
+                """.formatted(user.getUsername(), code);
+        }
 
         sendEmail(user.getEmail(), subject, plainText, html);
     }

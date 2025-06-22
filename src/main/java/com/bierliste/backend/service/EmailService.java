@@ -12,8 +12,8 @@ public class EmailService {
         this.brevoEmailService = brevoEmailService;
     }
 
-    public void sendVerificationEmail(User user, String code) {
-        brevoEmailService.sendVerificationEmailBrevo(user, code);
+    public void sendVerificationEmail(User user, String code, boolean resetPassword) {
+        brevoEmailService.sendVerificationEmailBrevo(user, code, resetPassword);
     }
 
     public void sendCustomEmail(String to, String subject, String plainText, String htmlContent) {

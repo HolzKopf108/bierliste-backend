@@ -1,5 +1,6 @@
 package com.bierliste.backend.controller;
 
+import com.bierliste.backend.dto.CounterUpdateDto;
 import com.bierliste.backend.model.Counter;
 import com.bierliste.backend.repository.CounterRepository;
 
@@ -11,7 +12,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/counter")
-@CrossOrigin(origins = "*") // Für Flutter
 public class CounterController {
 
     @Autowired
@@ -25,11 +25,11 @@ public class CounterController {
     }
 
     @PostMapping
-    public ResponseEntity<?> updateCounter(@RequestBody Map<String, Integer> payload) {
-        int count = payload.get("count");
+    public ResponseEntity<?> updateCounter(@RequestBody CounterUpdateDto dto) {
+        int count = dto.getCount();
         Counter counter = counterRepository.findById(1L)
             .orElseGet(() -> new Counter());
-        counter.setCount(count);
+        counter.setCount(counter.getCount() + count);
         counterRepository.save(counter);
         return ResponseEntity.ok().build();
     }

@@ -22,7 +22,7 @@ public class TestController {
         User user = new User();
         user.setUsername("TestUsername");
         user.setEmail("linus.koelker@gmx.de");
-        emailService.sendVerificationEmail(user, "839461");
+        emailService.sendVerificationEmail(user, "839461", false);
         return "OK";
     }
 }

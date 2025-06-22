@@ -5,7 +5,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -35,13 +34,14 @@ public class AuthController {
         var resp = authService.verify(body.get("email"), body.get("code"));
         return ResponseEntity.ok(Map.of(
             "accessToken", resp.accessToken(),
-            "refreshToken", resp.refreshToken()
+            "refreshToken", resp.refreshToken(),
+            "userEmail", resp.userEmail()
         ));
     }
 
-    @PostMapping("/resend")
-    public ResponseEntity<?> resend(@RequestBody Map<String, String> body) {
-        authService.resend(body.get("email"));
+    @PostMapping("/resendVerify")
+    public ResponseEntity<?> resendVerify(@RequestBody Map<String, String> body) {
+        authService.resend(body.get("email"), false);
         return ResponseEntity.ok(Map.of("message", "Code erneut gesendet"));
     }
 
@@ -50,7 +50,8 @@ public class AuthController {
         var resp = authService.login(dto);
         return ResponseEntity.ok(Map.of(
             "accessToken", resp.accessToken(),
-            "refreshToken", resp.refreshToken()
+            "refreshToken", resp.refreshToken(),
+            "userEmail", resp.userEmail()
         ));
     }
 
@@ -59,25 +60,30 @@ public class AuthController {
         var resp = authService.loginGoogle(dto.getIdToken());
         return ResponseEntity.ok(Map.of(
             "accessToken", resp.accessToken(),
-            "refreshToken", resp.refreshToken()
+            "refreshToken", resp.refreshToken(),
+            "userEmail", resp.userEmail()
         ));
     }
-
 
     @PostMapping("/refresh")
     public ResponseEntity<Map<String,String>> refresh(@RequestBody Map<String,String> body) {
         var resp = authService.refresh(body.get("refreshToken"));
         return ResponseEntity.ok(Map.of(
             "accessToken", resp.accessToken(),
-            "refreshToken", resp.refreshToken()
+            "refreshToken", resp.refreshToken(),
+            "userEmail", resp.userEmail()
         ));
     }
 
-    @PreAuthorize("isAuthenticated()")
-    @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout(@RequestBody Map<String, String> body) {
-        String token = body.get("refreshToken");
-        authService.logout(token);
-        return ResponseEntity.ok(Map.of("message", "Logout erfolgreich"));
+    @PostMapping("/resetPassword")
+    public ResponseEntity<Map<String,String>> resetPassword(@RequestBody Map<String,String> body) {
+        authService.resetPassword(body.get("email"));
+        return ResponseEntity.ok(Map.of("message", "Reset Code gesendet"));
+    }
+
+    @PostMapping("/resetPasswordResend")
+    public ResponseEntity<Map<String,String>> resetPasswordResend(@RequestBody Map<String,String> body) {
+        authService.resend(body.get("email"), true);
+        return ResponseEntity.ok(Map.of("message", "Code erneut gesendet"));
     }
 }

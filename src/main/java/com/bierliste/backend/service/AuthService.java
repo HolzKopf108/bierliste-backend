@@ -57,7 +57,7 @@ public class AuthService {
         user.setPasswordHash(pwdEnc.encode(dto.getPassword()));
         userRepo.save(user);
 
-        verificationService.createAndSend(user);
+        verificationService.createAndSend(user, false);
     }
 
     @Transactional
@@ -69,14 +69,14 @@ public class AuthService {
 
         String accessToken = jwtProvider.createAccessToken(user);
         RefreshToken refreshToken = refreshService.create(user);
-        return new AuthResponse(accessToken, refreshToken.getToken());
+        return new AuthResponse(accessToken, refreshToken.getToken(), email);
     }
 
-    public void resend(String email) {
+    public void resend(String email, boolean resetPassword) {
         User user = userRepo.findByEmail(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
 
-        verificationService.createAndSend(user);
+        verificationService.createAndSend(user, resetPassword);
     }
 
     public AuthResponse login(LoginDto dto) {
@@ -91,7 +91,7 @@ public class AuthService {
             
         String accessToken = jwtProvider.createAccessToken(user);
         RefreshToken refreshToken = refreshService.create(user);
-        return new AuthResponse(accessToken, refreshToken.getToken());
+        return new AuthResponse(accessToken, refreshToken.getToken(), user.getEmail());
     }
 
     public AuthResponse loginGoogle(String idTokenString) {
@@ -115,7 +115,7 @@ public class AuthService {
 
         String accessToken = jwtProvider.createAccessToken(user);
         RefreshToken refreshToken = refreshService.create(user);
-        return new AuthResponse(accessToken, refreshToken.getToken());
+        return new AuthResponse(accessToken, refreshToken.getToken(), email);
     }
 
     private GoogleIdToken.Payload verifyGoogleIdToken(String idTokenString) {
@@ -141,12 +141,15 @@ public class AuthService {
 
         String accessToken = jwtProvider.createAccessToken(user);
         RefreshToken newRefresh = refreshService.create(user);
-        return new AuthResponse(accessToken, newRefresh.getToken());
+        return new AuthResponse(accessToken, newRefresh.getToken(), user.getEmail());
     }
 
-    public void logout(String refreshToken) {
-        refreshService.delete(refreshToken);
+    public void resetPassword(String email) {
+        User user = userRepo.findByEmail(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
+
+        verificationService.createAndSend(user, true);
     }
 
-    public record AuthResponse(String accessToken, String refreshToken) {}
+    public record AuthResponse(String accessToken, String refreshToken, String userEmail) {}
 }

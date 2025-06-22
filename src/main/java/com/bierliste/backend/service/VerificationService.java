@@ -26,7 +26,7 @@ public class VerificationService {
     }
 
     @Transactional
-    public void createAndSend(User user) {
+    public void createAndSend(User user, boolean resetPassword) {
         repo.deleteByUser(user);
         repo.flush();
 
@@ -36,7 +36,7 @@ public class VerificationService {
         vt.setExpiryDate(Instant.now().plus(expMinutes, ChronoUnit.MINUTES));
         repo.save(vt);
 
-        emailService.sendVerificationEmail(user, vt.getCode());
+        emailService.sendVerificationEmail(user, vt.getCode(), resetPassword);
     }
 
     @Transactional
@@ -53,9 +53,9 @@ public class VerificationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Code abgelaufen");
         }
 
-
         User user = vt.getUser();
         user.setEmailVerified(true);
+
         repo.delete(vt);
     }
 }
