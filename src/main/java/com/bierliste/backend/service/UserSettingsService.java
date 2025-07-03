@@ -45,4 +45,9 @@ public class UserSettingsService {
     public boolean verifyPassword(User user, String password) {
         return pwdEnc.matches(password, user.getPasswordHash());
     }
+
+    @Transactional
+    public void deleteUser(User user) {
+        repo.deleteByUser(user);
+    }
 }

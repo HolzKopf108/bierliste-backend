@@ -46,7 +46,13 @@ public class RefreshTokenService {
         return token;
     }
 
+    @Transactional
     public void delete(String tokenStr) {
         repository.findByToken(tokenStr).ifPresent(repository::delete);
+    }
+
+    @Transactional
+    public void deleteUser(User user) {
+        repository.deleteByUser(user);
     }
 }

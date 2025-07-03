@@ -17,15 +17,18 @@ public class UserService {
     private final UserRepository userRepo;
     private final PasswordEncoder pwdEnc;
     private final RefreshTokenService refreshService;
+    private final UserSettingsService userSettingsService;
 
     public UserService(
         UserRepository userRepo, 
         PasswordEncoder pwdEnc,
-        RefreshTokenService refreshService
+        RefreshTokenService refreshService,
+        UserSettingsService userSettingsService
     ) {
         this.userRepo = userRepo;
         this.pwdEnc = pwdEnc;
         this.refreshService = refreshService;
+        this.userSettingsService = userSettingsService;
     }
 
     public UserDto getUser(User user) {
@@ -65,5 +68,18 @@ public class UserService {
     @Transactional
     public void logout(String refreshToken) {
         refreshService.delete(refreshToken);
+    }
+
+    @Transactional
+    public void deleteAccount(User user) {
+        userSettingsService.deleteUser(user);
+
+        refreshService.deleteUser(user);
+
+        // 3. (Optional) Offline-Striche, Bierstriche, History, etc.
+        // evt auch bei History einfach anonymisieren??
+        // andere Repositories ggf. auch...
+
+        userRepo.delete(user);
     }
 }
