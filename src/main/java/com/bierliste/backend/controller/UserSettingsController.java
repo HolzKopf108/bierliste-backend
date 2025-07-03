@@ -20,6 +20,11 @@ public class UserSettingsController {
         this.userSettingsService = userSettingsService;
     }
 
+    @GetMapping
+    public ResponseEntity<UserSettingsDto> getUserSettings(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(userSettingsService.getUserSettings(user));
+    }
+    
     @PutMapping
     public ResponseEntity<UserSettingsDto> updateSettings(@AuthenticationPrincipal User user,
                                                           @RequestBody UserSettingsDto dto) {

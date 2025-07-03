@@ -1,5 +1,6 @@
 package com.bierliste.backend.service;
 
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,13 @@ public class UserSettingsService {
     public UserSettingsService(UserSettingsRepository repo, PasswordEncoder pwdEnc) {
         this.repo = repo;
         this.pwdEnc = pwdEnc;
+    }
+
+    public UserSettingsDto getUserSettings(User user) {
+        UserSettings settings = repo.findByUser(user)
+            .orElseThrow(() -> new UsernameNotFoundException("Benutzereinstellungen nicht gefunden"));
+
+        return UserSettingsDto.fromEntity(settings);
     }
 
     @Transactional
