@@ -31,6 +31,12 @@ public class User {
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(nullable = false)
+    private Instant lastUpdated = Instant.now();
+
+    @Column(nullable = false)
+    private boolean googleUser = false;
+
     public Long getId() { return id; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
@@ -41,4 +47,8 @@ public class User {
     public boolean isEmailVerified() { return emailVerified; }
     public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getLastUpdated() { return lastUpdated; }
+    public void setLastUpdated(Instant lastUpdated) { this.lastUpdated = lastUpdated; }
+    public boolean istGoogleUser() { return googleUser; }
+    public void setGoogleUser(boolean googleUser) { this.googleUser = googleUser; }
 }

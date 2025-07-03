@@ -20,7 +20,7 @@ public class WebConfig {
             /* "https://frontend.domain.de", */         // prod domain
         ));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        config.setAllowedMethods(List.of("GET", "POST"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT"));
         config.setMaxAge(3600L);
 
         var source = new UrlBasedCorsConfigurationSource();

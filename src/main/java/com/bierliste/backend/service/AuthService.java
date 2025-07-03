@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+
 import com.bierliste.backend.dto.LoginDto;
 import com.bierliste.backend.dto.RegisterDto;
 import com.bierliste.backend.model.RefreshToken;
@@ -83,6 +84,10 @@ public class AuthService {
         User user = userRepo.findByEmail(dto.getEmail())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
 
+        if(user.istGoogleUser()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nutze den Google Login");
+        }
+
         authManager.authenticate(new UsernamePasswordAuthenticationToken(dto.getEmail(), dto.getPassword()));
         
         if (!user.isEmailVerified()) {
@@ -110,6 +115,7 @@ public class AuthService {
             newUser.setUsername(name != null ? name : email.split("@")[0]);
             newUser.setPasswordHash("GOOGLE_USER"); 
             newUser.setEmailVerified(true);
+            newUser.setGoogleUser(true);
             return userRepo.save(newUser);
         });
 
@@ -147,6 +153,10 @@ public class AuthService {
     public void resetPassword(String email) {
         User user = userRepo.findByEmail(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
+
+        if(user.istGoogleUser()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nutze den Google Login");
+        }
 
         verificationService.createAndSend(user, true);
     }
