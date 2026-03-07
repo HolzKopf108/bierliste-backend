@@ -84,7 +84,7 @@ public class AuthService {
         User user = userRepo.findByEmail(dto.getEmail())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
 
-        if(user.istGoogleUser()) {
+        if(user.isGoogleUser()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nutze den Google Login");
         }
 
@@ -154,7 +154,7 @@ public class AuthService {
         User user = userRepo.findByEmail(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
 
-        if(user.istGoogleUser()) {
+        if(user.isGoogleUser()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nutze den Google Login");
         }
 

@@ -1,13 +1,17 @@
 package com.bierliste.backend.model;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "users", uniqueConstraints = @UniqueConstraint(columnNames = "email"))
@@ -37,6 +41,9 @@ public class User {
     @Column(nullable = false)
     private boolean googleUser = false;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<GroupMember> memberships = new HashSet<>();
+
     public Long getId() { return id; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
@@ -49,6 +56,7 @@ public class User {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getLastUpdated() { return lastUpdated; }
     public void setLastUpdated(Instant lastUpdated) { this.lastUpdated = lastUpdated; }
-    public boolean istGoogleUser() { return googleUser; }
+    public boolean isGoogleUser() { return googleUser; }
     public void setGoogleUser(boolean googleUser) { this.googleUser = googleUser; }
+    public Set<GroupMember> getMemberships() { return memberships; }
 }

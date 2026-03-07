@@ -35,7 +35,7 @@ public class UserDto {
         dto.setEmail(user.getEmail());
         dto.setUsername(user.getUsername());
         dto.setLastUpdated(user.getLastUpdated());
-        dto.setGoogleUser(user.istGoogleUser());
+        dto.setGoogleUser(user.isGoogleUser());
         return dto;
     }
 }
