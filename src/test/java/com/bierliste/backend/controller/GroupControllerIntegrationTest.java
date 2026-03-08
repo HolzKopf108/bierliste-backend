@@ -85,6 +85,14 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void joinGroupReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(post("/api/v1/groups/1/join"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void getGroupsReturnsOnlyGroupsForAuthenticatedUser() throws Exception {
         User user = createUser("groups-user@example.com");
         User secondUser = createUser("groups-second@example.com");
@@ -188,6 +196,62 @@ class GroupControllerIntegrationTest {
         String token = jwtTokenProvider.createAccessToken(nonMember);
 
         mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void joinGroupCreatesMembership() throws Exception {
+        User joiningUser = createUser("join-user@example.com", "JoinUser");
+        User creator = createUser("join-creator@example.com", "Creator");
+        Group group = createGroup("Join Gruppe", creator.getId());
+
+        String token = jwtTokenProvider.createAccessToken(joiningUser);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/join")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.message").value("Mitgliedschaft aktiv"));
+
+        var membership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), joiningUser.getId()).orElseThrow();
+        assertThat(membership.getRole()).isEqualTo(GroupRole.MEMBER);
+    }
+
+    @Test
+    void joinGroupIsIdempotentForExistingMembership() throws Exception {
+        User joiningUser = createUser("join-idempotent@example.com", "Idempotent");
+        User creator = createUser("join-owner@example.com", "Owner");
+        Group group = createGroup("Join Idempotent", creator.getId());
+
+        String token = jwtTokenProvider.createAccessToken(joiningUser);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/join")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Mitgliedschaft aktiv"));
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/join")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Mitgliedschaft aktiv"));
+
+        long memberCountForUser = groupMemberRepository.findAllByGroup_Id(group.getId())
+            .stream()
+            .filter(member -> member.getUser().getId().equals(joiningUser.getId()))
+            .count();
+
+        assertThat(memberCountForUser).isEqualTo(1);
+    }
+
+    @Test
+    void joinGroupReturnsNotFoundWhenGroupDoesNotExist() throws Exception {
+        User joiningUser = createUser("join-missing@example.com", "MissingGroup");
+        String token = jwtTokenProvider.createAccessToken(joiningUser);
+
+        mockMvc.perform(post("/api/v1/groups/999999/join")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

@@ -11,6 +11,7 @@ import com.bierliste.backend.model.User;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -93,5 +94,32 @@ public class GroupService {
         }
 
         return groupMemberRepository.findMemberDtosByGroupId(groupId);
+    }
+
+    @Transactional
+    public void joinGroup(Long groupId, User user) {
+        if (user == null || user.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
+        }
+
+        Group group = groupRepository.findById(groupId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
+
+        if (groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, user.getId())) {
+            return;
+        }
+
+        GroupMember membership = new GroupMember();
+        membership.setGroup(group);
+        membership.setUser(user);
+        membership.setRole(GroupRole.MEMBER);
+
+        try {
+            groupMemberRepository.save(membership);
+        } catch (DataIntegrityViolationException ex) {
+            if (!groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, user.getId())) {
+                throw ex;
+            }
+        }
     }
 }

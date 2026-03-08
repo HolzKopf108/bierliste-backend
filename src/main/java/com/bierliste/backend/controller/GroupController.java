@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/groups")
@@ -37,6 +38,12 @@ public class GroupController {
     @GetMapping("/{groupId}/members")
     public ResponseEntity<List<GroupMemberDto>> getGroupMembers(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(groupService.getGroupMembersForUser(groupId, user));
+    }
+
+    @PostMapping("/{groupId}/join")
+    public ResponseEntity<Map<String, String>> joinGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupService.joinGroup(groupId, user);
+        return ResponseEntity.ok(Map.of("message", "Mitgliedschaft aktiv"));
     }
 
     @PostMapping
