@@ -23,11 +23,14 @@ public class GroupService {
 
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
+    private final GroupAccessService groupAccessService;
 
     public GroupService(GroupRepository groupRepository,
-                        GroupMemberRepository groupMemberRepository) {
+                        GroupMemberRepository groupMemberRepository,
+                        GroupAccessService groupAccessService) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
+        this.groupAccessService = groupAccessService;
     }
 
     @Transactional
@@ -58,23 +61,16 @@ public class GroupService {
     }
 
     public List<GroupSummaryDto> getGroupsForUser(User user) {
-        if (user == null || user.getId() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
-        }
+        Long userId = groupAccessService.requireAuthenticatedUserId(user);
 
-        return groupRepository.findDistinctByMembers_User_IdOrderByNameAsc(user.getId())
+        return groupRepository.findDistinctByMembers_User_IdOrderByNameAsc(userId)
             .stream()
             .map(group -> new GroupSummaryDto(group.getId(), group.getName()))
             .toList();
     }
 
     public GroupDto getGroupForUser(Long groupId, User user) {
-        if (user == null || user.getId() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
-        }
-
-        Group group = groupRepository.findByIdAndMembers_User_Id(groupId, user.getId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
+        Group group = groupAccessService.requireGroupMembership(groupId, user);
 
         return new GroupDto(
             group.getId(),
@@ -85,27 +81,19 @@ public class GroupService {
     }
 
     public List<GroupMemberDto> getGroupMembersForUser(Long groupId, User user) {
-        if (user == null || user.getId() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
-        }
-
-        if (!groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, user.getId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden");
-        }
+        groupAccessService.requireGroupMembership(groupId, user);
 
         return groupMemberRepository.findMemberDtosByGroupId(groupId);
     }
 
     @Transactional
     public void joinGroup(Long groupId, User user) {
-        if (user == null || user.getId() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
-        }
+        Long userId = groupAccessService.requireAuthenticatedUserId(user);
 
         Group group = groupRepository.findById(groupId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
 
-        if (groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, user.getId())) {
+        if (groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, userId)) {
             return;
         }
 
@@ -117,7 +105,7 @@ public class GroupService {
         try {
             groupMemberRepository.save(membership);
         } catch (DataIntegrityViolationException ex) {
-            if (!groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, user.getId())) {
+            if (!groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, userId)) {
                 throw ex;
             }
         }
@@ -125,12 +113,7 @@ public class GroupService {
 
     @Transactional
     public void leaveGroup(Long groupId, User user) {
-        if (user == null || user.getId() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
-        }
-
-        GroupMember membership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, user.getId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
+        GroupMember membership = groupAccessService.requireMembershipEntity(groupId, user);
 
         groupMemberRepository.delete(membership);
     }
