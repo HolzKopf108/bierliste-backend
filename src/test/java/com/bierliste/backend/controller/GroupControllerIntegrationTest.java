@@ -93,6 +93,14 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void leaveGroupReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(post("/api/v1/groups/1/leave"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void getGroupsReturnsOnlyGroupsForAuthenticatedUser() throws Exception {
         User user = createUser("groups-user@example.com");
         User secondUser = createUser("groups-second@example.com");
@@ -252,6 +260,42 @@ class GroupControllerIntegrationTest {
         String token = jwtTokenProvider.createAccessToken(joiningUser);
 
         mockMvc.perform(post("/api/v1/groups/999999/join")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void leaveGroupRemovesMembership() throws Exception {
+        User leavingUser = createUser("leave-user@example.com", "LeavingUser");
+        User creator = createUser("leave-creator@example.com", "LeaveCreator");
+        Group group = createGroup("Leave Gruppe", creator.getId());
+
+        createMembership(group, leavingUser, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(leavingUser);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/leave")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.message").value("Gruppe verlassen"));
+
+        assertThat(groupMemberRepository.existsByGroup_IdAndUser_Id(group.getId(), leavingUser.getId())).isFalse();
+    }
+
+    @Test
+    void leaveGroupReturnsNotFoundWhenUserIsNotMember() throws Exception {
+        User member = createUser("leave-member@example.com", "LeaveMember");
+        User nonMember = createUser("leave-non-member@example.com", "LeaveNonMember");
+        Group group = createGroup("Leave Private", member.getId());
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(nonMember);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/leave")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

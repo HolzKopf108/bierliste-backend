@@ -46,6 +46,12 @@ public class GroupController {
         return ResponseEntity.ok(Map.of("message", "Mitgliedschaft aktiv"));
     }
 
+    @PostMapping("/{groupId}/leave")
+    public ResponseEntity<Map<String, String>> leaveGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupService.leaveGroup(groupId, user);
+        return ResponseEntity.ok(Map.of("message", "Gruppe verlassen"));
+    }
+
     @PostMapping
     public ResponseEntity<GroupDto> createGroup(
         @Valid @RequestBody CreateGroupDto dto,

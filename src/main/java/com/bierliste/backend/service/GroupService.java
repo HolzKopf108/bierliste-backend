@@ -122,4 +122,16 @@ public class GroupService {
             }
         }
     }
+
+    @Transactional
+    public void leaveGroup(Long groupId, User user) {
+        if (user == null || user.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
+        }
+
+        GroupMember membership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, user.getId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
+
+        groupMemberRepository.delete(membership);
+    }
 }
