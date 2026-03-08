@@ -28,6 +28,11 @@ public class GroupController {
         return ResponseEntity.ok(groupService.getGroupsForUser(user));
     }
 
+    @GetMapping("/{groupId}")
+    public ResponseEntity<GroupDto> getGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(groupService.getGroupForUser(groupId, user));
+    }
+
     @PostMapping
     public ResponseEntity<GroupDto> createGroup(
         @Valid @RequestBody CreateGroupDto dto,

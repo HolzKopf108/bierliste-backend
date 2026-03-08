@@ -65,4 +65,20 @@ public class GroupService {
             .map(group -> new GroupSummaryDto(group.getId(), group.getName()))
             .toList();
     }
+
+    public GroupDto getGroupForUser(Long groupId, User user) {
+        if (user == null || user.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
+        }
+
+        Group group = groupRepository.findByIdAndMembers_User_Id(groupId, user.getId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
+
+        return new GroupDto(
+            group.getId(),
+            group.getName(),
+            group.getCreatedAt(),
+            group.getCreatedByUserId()
+        );
+    }
 }

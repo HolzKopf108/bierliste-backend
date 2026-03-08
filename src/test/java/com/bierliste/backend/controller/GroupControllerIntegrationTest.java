@@ -69,6 +69,14 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getGroupByIdReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(get("/api/v1/groups/1"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void getGroupsReturnsOnlyGroupsForAuthenticatedUser() throws Exception {
         User user = createUser("groups-user@example.com");
         User secondUser = createUser("groups-second@example.com");
@@ -94,6 +102,43 @@ class GroupControllerIntegrationTest {
             .andExpect(jsonPath("$[0].memberCount").doesNotExist())
             .andExpect(jsonPath("$[1].name").value("Beta"))
             .andExpect(jsonPath("$[1].memberCount").doesNotExist());
+    }
+
+    @Test
+    void getGroupByIdReturnsGroupDetailsForMember() throws Exception {
+        User member = createUser("group-member@example.com");
+        User creator = createUser("group-creator-details@example.com");
+        Group group = createGroup("Details Gruppe", creator.getId());
+
+        createMembership(group, member, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId())
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.id").value(group.getId()))
+            .andExpect(jsonPath("$.name").value("Details Gruppe"))
+            .andExpect(jsonPath("$.createdByUserId").value(creator.getId()))
+            .andExpect(jsonPath("$.createdAt").isNotEmpty());
+    }
+
+    @Test
+    void getGroupByIdReturnsNotFoundForNonMember() throws Exception {
+        User member = createUser("group-member-only@example.com");
+        User nonMember = createUser("group-non-member@example.com");
+        Group group = createGroup("Private Gruppe", member.getId());
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(nonMember);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId())
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
     }
 
     @Test
