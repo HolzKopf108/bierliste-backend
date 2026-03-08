@@ -410,7 +410,6 @@ Weitere Properties:
 ```
 ./gradlew test
 ```
-Aktuell vorhanden: nur `contextLoads` Smoke-Test.
 
 ## Vollständigkeit (Definition)
 | Sicht | "Vollständig" bedeutet |

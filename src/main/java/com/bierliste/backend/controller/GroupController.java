@@ -1,0 +1,31 @@
+package com.bierliste.backend.controller;
+
+import com.bierliste.backend.dto.CreateGroupDto;
+import com.bierliste.backend.dto.GroupDto;
+import com.bierliste.backend.model.User;
+import com.bierliste.backend.service.GroupService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/groups")
+public class GroupController {
+
+    private final GroupService groupService;
+
+    public GroupController(GroupService groupService) {
+        this.groupService = groupService;
+    }
+
+    @PostMapping
+    public ResponseEntity<GroupDto> createGroup(
+        @Valid @RequestBody CreateGroupDto dto,
+        @AuthenticationPrincipal User user
+    ) {
+        GroupDto createdGroup = groupService.createGroup(dto, user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdGroup);
+    }
+}
