@@ -2,6 +2,7 @@ package com.bierliste.backend.service;
 
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.GroupDto;
+import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
@@ -12,6 +13,8 @@ import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 @Service
 public class GroupService {
@@ -50,5 +53,16 @@ public class GroupService {
             savedGroup.getCreatedAt(),
             savedGroup.getCreatedByUserId()
         );
+    }
+
+    public List<GroupSummaryDto> getGroupsForUser(User user) {
+        if (user == null || user.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
+        }
+
+        return groupRepository.findDistinctByMembers_User_IdOrderByNameAsc(user.getId())
+            .stream()
+            .map(group -> new GroupSummaryDto(group.getId(), group.getName()))
+            .toList();
     }
 }

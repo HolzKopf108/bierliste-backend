@@ -1,11 +1,14 @@
 package com.bierliste.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.bierliste.backend.model.Group;
+import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.repository.GroupMemberRepository;
@@ -58,6 +61,42 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getGroupsReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(get("/api/v1/groups"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
+    void getGroupsReturnsOnlyGroupsForAuthenticatedUser() throws Exception {
+        User user = createUser("groups-user@example.com");
+        User secondUser = createUser("groups-second@example.com");
+        User thirdUser = createUser("groups-third@example.com");
+
+        Group alphaGroup = createGroup("Alpha", user.getId());
+        Group betaGroup = createGroup("Beta", secondUser.getId());
+        Group gammaGroup = createGroup("Gamma", thirdUser.getId());
+
+        createMembership(alphaGroup, user, GroupRole.ADMIN);
+        createMembership(betaGroup, user, GroupRole.MEMBER);
+        createMembership(betaGroup, secondUser, GroupRole.ADMIN);
+        createMembership(gammaGroup, thirdUser, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(user);
+
+        mockMvc.perform(get("/api/v1/groups")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].name").value("Alpha"))
+            .andExpect(jsonPath("$[0].memberCount").doesNotExist())
+            .andExpect(jsonPath("$[1].name").value("Beta"))
+            .andExpect(jsonPath("$[1].memberCount").doesNotExist());
+    }
+
+    @Test
     void createGroupReturnsValidationErrorWhenNameIsBlank() throws Exception {
         String token = createAccessTokenForUser("valid-user@example.com");
 
@@ -102,5 +141,20 @@ class GroupControllerIntegrationTest {
         user.setUsername(email);
         user.setPasswordHash("hashed");
         return userRepository.save(user);
+    }
+
+    private Group createGroup(String name, Long createdByUserId) {
+        Group group = new Group();
+        group.setName(name);
+        group.setCreatedByUserId(createdByUserId);
+        return groupRepository.save(group);
+    }
+
+    private GroupMember createMembership(Group group, User user, GroupRole role) {
+        GroupMember groupMember = new GroupMember();
+        groupMember.setGroup(group);
+        groupMember.setUser(user);
+        groupMember.setRole(role);
+        return groupMemberRepository.save(groupMember);
     }
 }

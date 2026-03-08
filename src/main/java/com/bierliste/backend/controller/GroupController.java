@@ -2,6 +2,7 @@ package com.bierliste.backend.controller;
 
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.GroupDto;
+import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.service.GroupService;
 import jakarta.validation.Valid;
@@ -9,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/groups")
@@ -18,6 +21,11 @@ public class GroupController {
 
     public GroupController(GroupService groupService) {
         this.groupService = groupService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<GroupSummaryDto>> getGroups(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(groupService.getGroupsForUser(user));
     }
 
     @PostMapping
