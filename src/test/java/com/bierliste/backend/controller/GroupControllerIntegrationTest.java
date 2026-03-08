@@ -77,6 +77,14 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getGroupMembersReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(get("/api/v1/groups/1/members"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void getGroupsReturnsOnlyGroupsForAuthenticatedUser() throws Exception {
         User user = createUser("groups-user@example.com");
         User secondUser = createUser("groups-second@example.com");
@@ -142,6 +150,51 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getGroupMembersReturnsSortedMembersForGroupMember() throws Exception {
+        User requester = createUser("requester@example.com", "Mona");
+        User anna = createUser("anna@example.com", "Anna");
+        User zora = createUser("zora@example.com", "Zora");
+        Group group = createGroup("Team Gruppe", requester.getId());
+
+        createMembership(group, zora, GroupRole.MEMBER);
+        createMembership(group, requester, GroupRole.ADMIN);
+        createMembership(group, anna, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(requester);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.length()").value(3))
+            .andExpect(jsonPath("$[0].username").value("Anna"))
+            .andExpect(jsonPath("$[0].userId").value(anna.getId()))
+            .andExpect(jsonPath("$[0].joinedAt").isNotEmpty())
+            .andExpect(jsonPath("$[0].role").value("MEMBER"))
+            .andExpect(jsonPath("$[1].username").value("Mona"))
+            .andExpect(jsonPath("$[1].role").value("ADMIN"))
+            .andExpect(jsonPath("$[2].username").value("Zora"))
+            .andExpect(jsonPath("$[2].role").value("MEMBER"));
+    }
+
+    @Test
+    void getGroupMembersReturnsNotFoundForNonMember() throws Exception {
+        User member = createUser("members-visible@example.com", "Visible");
+        User nonMember = createUser("members-hidden@example.com", "Hidden");
+        Group group = createGroup("Nur Mitglieder", member.getId());
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(nonMember);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
     void createGroupReturnsValidationErrorWhenNameIsBlank() throws Exception {
         String token = createAccessTokenForUser("valid-user@example.com");
 
@@ -181,9 +234,13 @@ class GroupControllerIntegrationTest {
     }
 
     private User createUser(String email) {
+        return createUser(email, email);
+    }
+
+    private User createUser(String email, String username) {
         User user = new User();
         user.setEmail(email);
-        user.setUsername(email);
+        user.setUsername(username);
         user.setPasswordHash("hashed");
         return userRepository.save(user);
     }

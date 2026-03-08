@@ -2,6 +2,7 @@ package com.bierliste.backend.controller;
 
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.GroupDto;
+import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.service.GroupService;
@@ -31,6 +32,11 @@ public class GroupController {
     @GetMapping("/{groupId}")
     public ResponseEntity<GroupDto> getGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(groupService.getGroupForUser(groupId, user));
+    }
+
+    @GetMapping("/{groupId}/members")
+    public ResponseEntity<List<GroupMemberDto>> getGroupMembers(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(groupService.getGroupMembersForUser(groupId, user));
     }
 
     @PostMapping

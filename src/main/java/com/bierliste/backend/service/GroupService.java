@@ -2,6 +2,7 @@ package com.bierliste.backend.service;
 
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.GroupDto;
+import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupMember;
@@ -80,5 +81,17 @@ public class GroupService {
             group.getCreatedAt(),
             group.getCreatedByUserId()
         );
+    }
+
+    public List<GroupMemberDto> getGroupMembersForUser(Long groupId, User user) {
+        if (user == null || user.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
+        }
+
+        if (!groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, user.getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden");
+        }
+
+        return groupMemberRepository.findMemberDtosByGroupId(groupId);
     }
 }
