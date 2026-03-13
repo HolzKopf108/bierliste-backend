@@ -46,7 +46,14 @@ public class SecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**", "/api/v1/ping", "/api/v1/counter").permitAll()
+                .requestMatchers(
+                    "/api/v1/auth/**",
+                    "/api/v1/ping",
+                    "/api/v1/counter",
+                    "/v3/api-docs/**",
+                    "/swagger-ui.html",
+                    "/swagger-ui/**"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(
