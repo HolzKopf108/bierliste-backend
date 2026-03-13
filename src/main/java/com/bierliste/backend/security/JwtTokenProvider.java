@@ -80,6 +80,9 @@ public class JwtTokenProvider {
         Long userId = getUserId(token);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User nicht gefunden: " + userId));
+        if (user.isDeleted()) {
+            throw new UsernameNotFoundException("User nicht gefunden: " + userId);
+        }
         GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_USER");
         List<GrantedAuthority> authorities = Collections.singletonList(authority);
         return new UsernamePasswordAuthenticationToken(user, token, authorities);

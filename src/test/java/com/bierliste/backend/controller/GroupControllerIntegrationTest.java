@@ -106,9 +106,9 @@ class GroupControllerIntegrationTest {
         User secondUser = createUser("groups-second@example.com");
         User thirdUser = createUser("groups-third@example.com");
 
-        Group alphaGroup = createGroup("Alpha", user.getId());
-        Group betaGroup = createGroup("Beta", secondUser.getId());
-        Group gammaGroup = createGroup("Gamma", thirdUser.getId());
+        Group alphaGroup = createGroup("Alpha", user);
+        Group betaGroup = createGroup("Beta", secondUser);
+        Group gammaGroup = createGroup("Gamma", thirdUser);
 
         createMembership(alphaGroup, user, GroupRole.ADMIN);
         createMembership(betaGroup, user, GroupRole.MEMBER);
@@ -132,7 +132,7 @@ class GroupControllerIntegrationTest {
     void getGroupByIdReturnsGroupDetailsForMember() throws Exception {
         User member = createUser("group-member@example.com");
         User creator = createUser("group-creator-details@example.com");
-        Group group = createGroup("Details Gruppe", creator.getId());
+        Group group = createGroup("Details Gruppe", creator);
 
         createMembership(group, member, GroupRole.MEMBER);
 
@@ -152,7 +152,7 @@ class GroupControllerIntegrationTest {
     void getGroupByIdReturnsNotFoundForNonMember() throws Exception {
         User member = createUser("group-member-only@example.com");
         User nonMember = createUser("group-non-member@example.com");
-        Group group = createGroup("Private Gruppe", member.getId());
+        Group group = createGroup("Private Gruppe", member);
 
         createMembership(group, member, GroupRole.ADMIN);
 
@@ -170,7 +170,7 @@ class GroupControllerIntegrationTest {
         User requester = createUser("requester@example.com", "Mona");
         User anna = createUser("anna@example.com", "Anna");
         User zora = createUser("zora@example.com", "Zora");
-        Group group = createGroup("Team Gruppe", requester.getId());
+        Group group = createGroup("Team Gruppe", requester);
 
         createMembership(group, zora, GroupRole.MEMBER);
         createMembership(group, requester, GroupRole.ADMIN);
@@ -197,7 +197,7 @@ class GroupControllerIntegrationTest {
     void getGroupMembersReturnsNotFoundForNonMember() throws Exception {
         User member = createUser("members-visible@example.com", "Visible");
         User nonMember = createUser("members-hidden@example.com", "Hidden");
-        Group group = createGroup("Nur Mitglieder", member.getId());
+        Group group = createGroup("Nur Mitglieder", member);
 
         createMembership(group, member, GroupRole.ADMIN);
 
@@ -214,7 +214,7 @@ class GroupControllerIntegrationTest {
     void joinGroupCreatesMembership() throws Exception {
         User joiningUser = createUser("join-user@example.com", "JoinUser");
         User creator = createUser("join-creator@example.com", "Creator");
-        Group group = createGroup("Join Gruppe", creator.getId());
+        Group group = createGroup("Join Gruppe", creator);
 
         String token = jwtTokenProvider.createAccessToken(joiningUser);
 
@@ -232,7 +232,7 @@ class GroupControllerIntegrationTest {
     void joinGroupIsIdempotentForExistingMembership() throws Exception {
         User joiningUser = createUser("join-idempotent@example.com", "Idempotent");
         User creator = createUser("join-owner@example.com", "Owner");
-        Group group = createGroup("Join Idempotent", creator.getId());
+        Group group = createGroup("Join Idempotent", creator);
 
         String token = jwtTokenProvider.createAccessToken(joiningUser);
 
@@ -270,7 +270,7 @@ class GroupControllerIntegrationTest {
     void leaveGroupRemovesMembership() throws Exception {
         User leavingUser = createUser("leave-user@example.com", "LeavingUser");
         User creator = createUser("leave-creator@example.com", "LeaveCreator");
-        Group group = createGroup("Leave Gruppe", creator.getId());
+        Group group = createGroup("Leave Gruppe", creator);
 
         createMembership(group, leavingUser, GroupRole.MEMBER);
 
@@ -289,7 +289,7 @@ class GroupControllerIntegrationTest {
     void leaveGroupReturnsNotFoundWhenUserIsNotMember() throws Exception {
         User member = createUser("leave-member@example.com", "LeaveMember");
         User nonMember = createUser("leave-non-member@example.com", "LeaveNonMember");
-        Group group = createGroup("Leave Private", member.getId());
+        Group group = createGroup("Leave Private", member);
 
         createMembership(group, member, GroupRole.ADMIN);
 
@@ -353,10 +353,10 @@ class GroupControllerIntegrationTest {
         return userRepository.save(user);
     }
 
-    private Group createGroup(String name, Long createdByUserId) {
+    private Group createGroup(String name, User createdByUser) {
         Group group = new Group();
         group.setName(name);
-        group.setCreatedByUserId(createdByUserId);
+        group.setCreatedByUser(createdByUser);
         return groupRepository.save(group);
     }
 

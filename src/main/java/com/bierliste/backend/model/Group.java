@@ -24,8 +24,9 @@ public class Group {
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    @Column(name = "created_by_user_id", nullable = false, updatable = false)
-    private Long createdByUserId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "created_by_user_id", nullable = false, updatable = false)
+    private User createdByUser;
 
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<GroupMember> members = new HashSet<>();
@@ -34,7 +35,8 @@ public class Group {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public Instant getCreatedAt() { return createdAt; }
-    public Long getCreatedByUserId() { return createdByUserId; }
-    public void setCreatedByUserId(Long createdByUserId) { this.createdByUserId = createdByUserId; }
+    public Long getCreatedByUserId() { return createdByUser != null ? createdByUser.getId() : null; }
+    public User getCreatedByUser() { return createdByUser; }
+    public void setCreatedByUser(User createdByUser) { this.createdByUser = createdByUser; }
     public Set<GroupMember> getMembers() { return members; }
 }

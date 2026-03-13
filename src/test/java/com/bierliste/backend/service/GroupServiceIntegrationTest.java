@@ -61,4 +61,62 @@ class GroupServiceIntegrationTest {
         assertThat(persistedMember.getGroup().getId()).isEqualTo(persistedGroup.getId());
         assertThat(persistedMember.getUser().getId()).isEqualTo(creator.getId());
     }
+
+    @Test
+    void leaveGroupDeletesGroupWhenLastMemberLeaves() {
+        User creator = createUser("last-member@example.com", "last-member");
+        Group group = createGroup("Leere Gruppe", creator);
+        createMembership(group, creator, GroupRole.ADMIN);
+
+        groupService.leaveGroup(group.getId(), creator);
+
+        assertThat(groupRepository.findById(group.getId())).isEmpty();
+        assertThat(groupMemberRepository.findAllByGroup_Id(group.getId())).isEmpty();
+    }
+
+    @Test
+    void leaveGroupPromotesNextMemberWhenLastAdminLeaves() {
+        User admin = createUser("admin@example.com", "admin");
+        User firstMember = createUser("first@example.com", "first");
+        User secondMember = createUser("second@example.com", "second");
+        Group group = createGroup("Admin Wechsel", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        GroupMember promotedCandidate = createMembership(group, firstMember, GroupRole.MEMBER);
+        createMembership(group, secondMember, GroupRole.MEMBER);
+
+        groupService.leaveGroup(group.getId(), admin);
+
+        assertThat(groupRepository.findById(group.getId())).isPresent();
+        assertThat(groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), admin.getId())).isEmpty();
+        GroupMember promotedMember = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), firstMember.getId()).orElseThrow();
+        GroupMember unchangedMember = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), secondMember.getId()).orElseThrow();
+
+        assertThat(promotedMember.getId()).isEqualTo(promotedCandidate.getId());
+        assertThat(promotedMember.getRole()).isEqualTo(GroupRole.ADMIN);
+        assertThat(unchangedMember.getRole()).isEqualTo(GroupRole.MEMBER);
+    }
+
+    private User createUser(String email, String username) {
+        User user = new User();
+        user.setEmail(email);
+        user.setUsername(username);
+        user.setPasswordHash("hashed");
+        return userRepository.save(user);
+    }
+
+    private Group createGroup(String name, User createdByUser) {
+        Group group = new Group();
+        group.setName(name);
+        group.setCreatedByUser(createdByUser);
+        return groupRepository.save(group);
+    }
+
+    private GroupMember createMembership(Group group, User user, GroupRole role) {
+        GroupMember groupMember = new GroupMember();
+        groupMember.setGroup(group);
+        groupMember.setUser(user);
+        groupMember.setRole(role);
+        return groupMemberRepository.save(groupMember);
+    }
 }

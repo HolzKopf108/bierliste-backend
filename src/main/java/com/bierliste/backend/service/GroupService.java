@@ -41,7 +41,7 @@ public class GroupService {
 
         Group group = new Group();
         group.setName(dto.getName().trim());
-        group.setCreatedByUserId(creator.getId());
+        group.setCreatedByUser(creator);
 
         Group savedGroup = groupRepository.save(group);
 
@@ -114,7 +114,35 @@ public class GroupService {
     @Transactional
     public void leaveGroup(Long groupId, User user) {
         GroupMember membership = groupAccessService.requireMembershipEntity(groupId, user);
+        removeMembershipAndCleanupGroup(membership);
+    }
+
+    @Transactional
+    public void removeUserFromAllGroups(User user) {
+        Long userId = groupAccessService.requireAuthenticatedUserId(user);
+        List<GroupMember> memberships = groupMemberRepository.findAllByUser_Id(userId);
+        for (GroupMember membership : memberships) {
+            removeMembershipAndCleanupGroup(membership);
+        }
+    }
+
+    private void removeMembershipAndCleanupGroup(GroupMember membership) {
+        Long groupId = membership.getGroup().getId();
+        Group group = membership.getGroup();
+        boolean wasAdmin = membership.getRole() == GroupRole.ADMIN;
 
         groupMemberRepository.delete(membership);
+        groupMemberRepository.flush();
+
+        if (!groupMemberRepository.existsByGroup_Id(groupId)) {
+            groupRepository.delete(group);
+            return;
+        }
+
+        if (wasAdmin && !groupMemberRepository.existsByGroup_IdAndRole(groupId, GroupRole.ADMIN)) {
+            GroupMember newAdmin = groupMemberRepository.findFirstByGroup_IdOrderByJoinedAtAscIdAsc(groupId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Admin konnte nicht neu zugewiesen werden"));
+            newAdmin.setRole(GroupRole.ADMIN);
+        }
     }
 }

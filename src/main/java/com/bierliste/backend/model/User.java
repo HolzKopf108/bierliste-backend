@@ -41,6 +41,9 @@ public class User {
     @Column(nullable = false)
     private boolean googleUser = false;
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<GroupMember> memberships = new HashSet<>();
 
@@ -54,9 +57,12 @@ public class User {
     public boolean isEmailVerified() { return emailVerified; }
     public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
     public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getLastUpdated() { return lastUpdated; }
     public void setLastUpdated(Instant lastUpdated) { this.lastUpdated = lastUpdated; }
     public boolean isGoogleUser() { return googleUser; }
     public void setGoogleUser(boolean googleUser) { this.googleUser = googleUser; }
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public Set<GroupMember> getMemberships() { return memberships; }
 }
