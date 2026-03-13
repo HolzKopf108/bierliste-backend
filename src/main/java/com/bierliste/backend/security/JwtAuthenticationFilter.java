@@ -1,6 +1,8 @@
 package com.bierliste.backend.security;
 
+import io.jsonwebtoken.JwtException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 import jakarta.servlet.FilterChain;
@@ -24,9 +26,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
-            if (jwtProvider.validateToken(token)) {
-                Authentication auth = jwtProvider.getAuthentication(token);
-                SecurityContextHolder.getContext().setAuthentication(auth);
+            try {
+                if (jwtProvider.validateToken(token)) {
+                    Authentication auth = jwtProvider.getAuthentication(token);
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
+            } catch (AuthenticationException | JwtException | IllegalArgumentException ex) {
+                SecurityContextHolder.clearContext();
             }
         }
         filterChain.doFilter(request, response);

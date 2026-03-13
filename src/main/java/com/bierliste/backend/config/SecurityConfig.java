@@ -5,6 +5,7 @@ import com.bierliste.backend.security.JwtTokenProvider;
 import java.nio.charset.StandardCharsets;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -16,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 @Configuration
 public class SecurityConfig {
@@ -27,6 +29,8 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        PathPatternRequestMatcher.Builder mvc = PathPatternRequestMatcher.withDefaults();
+
         http
             .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
@@ -54,7 +58,24 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/swagger-ui/**"
                 ).permitAll()
-                .anyRequest().authenticated()
+                .requestMatchers(
+                    mvc.matcher(HttpMethod.GET, "/api/v1/email"),
+                    mvc.matcher(HttpMethod.GET, "/api/v1/groups"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/groups"),
+                    mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}"),
+                    mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}/members"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/join"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/leave"),
+                    mvc.matcher(HttpMethod.GET, "/api/v1/user"),
+                    mvc.matcher(HttpMethod.PUT, "/api/v1/user"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/user/logout"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/user/updatePassword"),
+                    mvc.matcher(HttpMethod.DELETE, "/api/v1/user/delete/account"),
+                    mvc.matcher(HttpMethod.GET, "/api/v1/user/settings"),
+                    mvc.matcher(HttpMethod.PUT, "/api/v1/user/settings"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/user/settings/verifyPassword")
+                ).authenticated()
+                .anyRequest().permitAll()
             )
             .addFilterBefore(
                 new JwtAuthenticationFilter(jwtProvider),
