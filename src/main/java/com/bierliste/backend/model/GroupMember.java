@@ -1,7 +1,9 @@
 package com.bierliste.backend.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.time.Instant;
+import org.hibernate.annotations.Check;
 
 @Entity
 @Table(
@@ -14,6 +16,7 @@ import java.time.Instant;
         @Index(name = "idx_group_members_user", columnList = "user_id")
     }
 )
+@Check(constraints = "strich_count >= 0")
 public class GroupMember {
 
     @Id
@@ -35,6 +38,10 @@ public class GroupMember {
     @Column(nullable = false, updatable = false)
     private Instant joinedAt = Instant.now();
 
+    @PositiveOrZero
+    @Column(name = "strich_count", nullable = false, columnDefinition = "integer not null default 0")
+    private int strichCount = 0;
+
     public Long getId() { return id; }
     public Group getGroup() { return group; }
     public void setGroup(Group group) { this.group = group; }
@@ -43,4 +50,6 @@ public class GroupMember {
     public GroupRole getRole() { return role; }
     public void setRole(GroupRole role) { this.role = role; }
     public Instant getJoinedAt() { return joinedAt; }
+    public int getStrichCount() { return strichCount; }
+    public void setStrichCount(int strichCount) { this.strichCount = strichCount; }
 }

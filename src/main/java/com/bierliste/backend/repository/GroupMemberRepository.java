@@ -27,7 +27,7 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
     Optional<GroupMember> findFirstByGroup_IdOrderByJoinedAtAscIdAsc(Long groupId);
 
     @Query("""
-        select new com.bierliste.backend.dto.GroupMemberDto(gm.user.id, gm.user.username, gm.joinedAt, gm.role)
+        select new com.bierliste.backend.dto.GroupMemberDto(gm.user.id, gm.user.username, gm.joinedAt, gm.role, gm.strichCount)
         from GroupMember gm
         where gm.group.id = :groupId
         order by gm.user.username

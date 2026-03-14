@@ -10,15 +10,17 @@ public class GroupMemberDto {
     private String username;
     private Instant joinedAt;
     private GroupRole role;
+    private int strichCount;
 
     public GroupMemberDto() {
     }
 
-    public GroupMemberDto(Long userId, String username, Instant joinedAt, GroupRole role) {
+    public GroupMemberDto(Long userId, String username, Instant joinedAt, GroupRole role, int strichCount) {
         this.userId = userId;
         this.username = username;
         this.joinedAt = joinedAt;
         this.role = role;
+        this.strichCount = strichCount;
     }
 
     public Long getUserId() {
@@ -51,5 +53,13 @@ public class GroupMemberDto {
 
     public void setRole(GroupRole role) {
         this.role = role;
+    }
+
+    public int getStrichCount() {
+        return strichCount;
+    }
+
+    public void setStrichCount(int strichCount) {
+        this.strichCount = strichCount;
     }
 }

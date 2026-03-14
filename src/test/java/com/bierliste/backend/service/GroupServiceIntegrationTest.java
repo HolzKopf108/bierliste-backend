@@ -1,6 +1,7 @@
 package com.bierliste.backend.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.GroupDto;
@@ -11,6 +12,7 @@ import com.bierliste.backend.model.User;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -60,6 +62,22 @@ class GroupServiceIntegrationTest {
         assertThat(persistedMember.getRole()).isEqualTo(GroupRole.ADMIN);
         assertThat(persistedMember.getGroup().getId()).isEqualTo(persistedGroup.getId());
         assertThat(persistedMember.getUser().getId()).isEqualTo(creator.getId());
+        assertThat(persistedMember.getStrichCount()).isZero();
+    }
+
+    @Test
+    void groupMemberRejectsNegativeStrichCount() {
+        User user = createUser("invalid-counter@example.com", "invalid-counter");
+        Group group = createGroup("Ungueltiger Counter", user);
+
+        GroupMember invalidMembership = new GroupMember();
+        invalidMembership.setGroup(group);
+        invalidMembership.setUser(user);
+        invalidMembership.setRole(GroupRole.ADMIN);
+        invalidMembership.setStrichCount(-1);
+
+        assertThatThrownBy(() -> groupMemberRepository.saveAndFlush(invalidMembership))
+            .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test

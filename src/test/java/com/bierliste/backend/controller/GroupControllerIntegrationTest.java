@@ -172,9 +172,15 @@ class GroupControllerIntegrationTest {
         User zora = createUser("zora@example.com", "Zora");
         Group group = createGroup("Team Gruppe", requester);
 
-        createMembership(group, zora, GroupRole.MEMBER);
-        createMembership(group, requester, GroupRole.ADMIN);
-        createMembership(group, anna, GroupRole.MEMBER);
+        GroupMember zoraMembership = createMembership(group, zora, GroupRole.MEMBER);
+        GroupMember requesterMembership = createMembership(group, requester, GroupRole.ADMIN);
+        GroupMember annaMembership = createMembership(group, anna, GroupRole.MEMBER);
+        zoraMembership.setStrichCount(7);
+        requesterMembership.setStrichCount(3);
+        annaMembership.setStrichCount(1);
+        groupMemberRepository.save(zoraMembership);
+        groupMemberRepository.save(requesterMembership);
+        groupMemberRepository.save(annaMembership);
 
         String token = jwtTokenProvider.createAccessToken(requester);
 
@@ -187,10 +193,13 @@ class GroupControllerIntegrationTest {
             .andExpect(jsonPath("$[0].userId").value(anna.getId()))
             .andExpect(jsonPath("$[0].joinedAt").isNotEmpty())
             .andExpect(jsonPath("$[0].role").value("MEMBER"))
+            .andExpect(jsonPath("$[0].strichCount").value(1))
             .andExpect(jsonPath("$[1].username").value("Mona"))
             .andExpect(jsonPath("$[1].role").value("ADMIN"))
+            .andExpect(jsonPath("$[1].strichCount").value(3))
             .andExpect(jsonPath("$[2].username").value("Zora"))
-            .andExpect(jsonPath("$[2].role").value("MEMBER"));
+            .andExpect(jsonPath("$[2].role").value("MEMBER"))
+            .andExpect(jsonPath("$[2].strichCount").value(7));
     }
 
     @Test
@@ -226,6 +235,7 @@ class GroupControllerIntegrationTest {
 
         var membership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), joiningUser.getId()).orElseThrow();
         assertThat(membership.getRole()).isEqualTo(GroupRole.MEMBER);
+        assertThat(membership.getStrichCount()).isZero();
     }
 
     @Test
@@ -334,6 +344,7 @@ class GroupControllerIntegrationTest {
 
         var membership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, creator.getId()).orElseThrow();
         assertThat(membership.getRole()).isEqualTo(GroupRole.ADMIN);
+        assertThat(membership.getStrichCount()).isZero();
     }
 
     private String createAccessTokenForUser(String email) {
