@@ -27,7 +27,7 @@ Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Da
 | service | Geschäftslogik | AuthService, UserService, UserSettingsService, RefreshTokenService, VerificationService, EmailService, BrevoEmailService |
 | repository | Persistenz (JPA) | UserRepository, UserSettingsRepository, RefreshTokenRepository, VerificationTokenRepository, CounterRepository |
 | model | JPA Entities | User, UserSettings, RefreshToken, VerificationToken, Counter |
-| dto | Request/Response DTOs | RegisterDto, LoginDto, GoogleLoginDto, UserDto, UserPasswordDto, UserSettingsDto, CounterUpdateDto |
+| dto | Request/Response DTOs | RegisterDto, LoginDto, GoogleLoginDto, UserDto, UserPasswordDto, UserSettingsDto, CounterIncrementDto, CounterResponseDto |
 | security | JWT + Auth Filter | JwtTokenProvider, JwtAuthenticationFilter, CustomUserDetailsService |
 | config | Spring Konfiguration | SecurityConfig, WebConfig |
 | exception | Fehlerbehandlung | GlobalExceptionHandler |
@@ -83,7 +83,7 @@ Zeitformat für `Instant`: ISO-8601, z.B. `2026-01-25T12:34:56Z`
 | PUT | /user/settings | ja | - | UserSettingsDto {theme, autoSyncEnabled, lastUpdated} | UserSettingsDto |
 | POST | /user/settings/verifyPassword | ja | - | {password} | {valid} |
 | GET | /counter | nein | - | - | {count} |
-| POST | /counter | nein | - | CounterUpdateDto {count} | 200 OK (leer) |
+| POST | /counter | nein | - | CounterIncrementDto {amount} | CounterResponseDto {count} |
 | GET | /ping | nein | - | - | {status} |
 | GET | /email | ja | - | - | "OK" (text/plain, Test) |
 
@@ -334,10 +334,15 @@ Response:
 Request:
 ```json
 {
+  "amount": 3
+}
+```
+Response:
+```json
+{
   "count": 3
 }
 ```
-Response: `200 OK` (leerer Body)
 
 #### GET /ping
 Response:

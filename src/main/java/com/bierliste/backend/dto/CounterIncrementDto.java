@@ -3,7 +3,7 @@ package com.bierliste.backend.dto;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
-public class GroupCounterIncrementDto {
+public class CounterIncrementDto {
 
     @NotNull(message = "darf nicht null sein")
     @Min(value = 1, message = "muss mindestens 1 sein")

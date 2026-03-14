@@ -1,7 +1,7 @@
 package com.bierliste.backend.service;
 
 import com.bierliste.backend.dto.CreateGroupDto;
-import com.bierliste.backend.dto.GroupCounterIncrementDto;
+import com.bierliste.backend.dto.CounterIncrementDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
@@ -93,7 +93,7 @@ public class GroupService {
     }
 
     @Transactional
-    public int incrementOwnCounterForGroup(Long groupId, GroupCounterIncrementDto dto, User user) {
+    public int incrementOwnCounterForGroup(Long groupId, CounterIncrementDto dto, User user) {
         Long userId = groupAccessService.requireAuthenticatedUserId(user);
         groupAccessService.requireMembershipEntity(groupId, user);
 
