@@ -85,6 +85,14 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getOwnCounterReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(get("/api/v1/groups/1/me/counter"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void joinGroupReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
         mockMvc.perform(post("/api/v1/groups/1/join"))
             .andExpect(status().isUnauthorized())
@@ -213,6 +221,42 @@ class GroupControllerIntegrationTest {
         String token = jwtTokenProvider.createAccessToken(nonMember);
 
         mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void getOwnCounterReturnsPersistedStrichCountForMember() throws Exception {
+        User member = createUser("counter-member@example.com", "CounterMember");
+        User creator = createUser("counter-creator@example.com", "CounterCreator");
+        Group group = createGroup("Counter Gruppe", creator);
+
+        GroupMember membership = createMembership(group, member, GroupRole.MEMBER);
+        membership.setStrichCount(9);
+        groupMemberRepository.save(membership);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/me/counter")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.count").value(9));
+    }
+
+    @Test
+    void getOwnCounterReturnsNotFoundForNonMember() throws Exception {
+        User member = createUser("counter-group-member@example.com", "Member");
+        User nonMember = createUser("counter-group-non-member@example.com", "NonMember");
+        Group group = createGroup("Private Counter Gruppe", member);
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(nonMember);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/me/counter")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

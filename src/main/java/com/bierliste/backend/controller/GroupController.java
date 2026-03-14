@@ -40,6 +40,11 @@ public class GroupController {
         return ResponseEntity.ok(groupService.getGroupMembersForUser(groupId, user));
     }
 
+    @GetMapping("/{groupId}/me/counter")
+    public ResponseEntity<Map<String, Integer>> getOwnCounter(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(Map.of("count", groupService.getOwnCounterForGroup(groupId, user)));
+    }
+
     @PostMapping("/{groupId}/join")
     public ResponseEntity<Map<String, String>> joinGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         groupService.joinGroup(groupId, user);

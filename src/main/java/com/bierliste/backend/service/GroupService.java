@@ -86,6 +86,11 @@ public class GroupService {
         return groupMemberRepository.findMemberDtosByGroupId(groupId);
     }
 
+    public int getOwnCounterForGroup(Long groupId, User user) {
+        GroupMember membership = groupAccessService.requireMembershipEntity(groupId, user);
+        return membership.getStrichCount();
+    }
+
     @Transactional
     public void joinGroup(Long groupId, User user) {
         Long userId = groupAccessService.requireAuthenticatedUserId(user);
