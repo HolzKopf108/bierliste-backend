@@ -1,6 +1,7 @@
 package com.bierliste.backend.service;
 
 import com.bierliste.backend.dto.CreateGroupDto;
+import com.bierliste.backend.dto.GroupCounterIncrementDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
@@ -89,6 +90,17 @@ public class GroupService {
     public int getOwnCounterForGroup(Long groupId, User user) {
         GroupMember membership = groupAccessService.requireMembershipEntity(groupId, user);
         return membership.getStrichCount();
+    }
+
+    @Transactional
+    public int incrementOwnCounterForGroup(Long groupId, GroupCounterIncrementDto dto, User user) {
+        Long userId = groupAccessService.requireAuthenticatedUserId(user);
+        groupAccessService.requireMembershipEntity(groupId, user);
+
+        groupMemberRepository.incrementStrichCount(groupId, userId, dto.getAmount());
+
+        return groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(groupId, userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
     }
 
     @Transactional

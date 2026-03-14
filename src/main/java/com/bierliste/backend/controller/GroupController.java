@@ -1,6 +1,7 @@
 package com.bierliste.backend.controller;
 
 import com.bierliste.backend.dto.CreateGroupDto;
+import com.bierliste.backend.dto.GroupCounterIncrementDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
@@ -43,6 +44,15 @@ public class GroupController {
     @GetMapping("/{groupId}/me/counter")
     public ResponseEntity<Map<String, Integer>> getOwnCounter(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(Map.of("count", groupService.getOwnCounterForGroup(groupId, user)));
+    }
+
+    @PostMapping("/{groupId}/me/counter/increment")
+    public ResponseEntity<Map<String, Integer>> incrementOwnCounter(
+        @PathVariable Long groupId,
+        @Valid @RequestBody GroupCounterIncrementDto dto,
+        @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(Map.of("count", groupService.incrementOwnCounterForGroup(groupId, dto, user)));
     }
 
     @PostMapping("/{groupId}/join")

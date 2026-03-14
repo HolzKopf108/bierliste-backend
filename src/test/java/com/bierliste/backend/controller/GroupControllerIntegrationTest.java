@@ -93,6 +93,16 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void incrementOwnCounterReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(post("/api/v1/groups/1/me/counter/increment")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void joinGroupReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
         mockMvc.perform(post("/api/v1/groups/1/join"))
             .andExpect(status().isUnauthorized())
@@ -261,6 +271,92 @@ class GroupControllerIntegrationTest {
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void incrementOwnCounterIncreasesCountByOne() throws Exception {
+        User member = createUser("increment-one@example.com", "IncrementOne");
+        User creator = createUser("increment-one-creator@example.com", "Creator");
+        Group group = createGroup("Increment Eins", creator);
+
+        GroupMember membership = createMembership(group, member, GroupRole.MEMBER);
+        membership.setStrichCount(2);
+        groupMemberRepository.save(membership);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.count").value(3));
+
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), member.getId()).orElseThrow();
+        assertThat(updatedCount).isEqualTo(3);
+    }
+
+    @Test
+    void incrementOwnCounterIncreasesCountByRequestedAmount() throws Exception {
+        User member = createUser("increment-many@example.com", "IncrementMany");
+        User creator = createUser("increment-many-creator@example.com", "CreatorMany");
+        Group group = createGroup("Increment Mehrfach", creator);
+
+        GroupMember membership = createMembership(group, member, GroupRole.MEMBER);
+        membership.setStrichCount(5);
+        groupMemberRepository.save(membership);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 7))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.count").value(12));
+
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), member.getId()).orElseThrow();
+        assertThat(updatedCount).isEqualTo(12);
+    }
+
+    @Test
+    void incrementOwnCounterReturnsNotFoundForNonMember() throws Exception {
+        User member = createUser("increment-member@example.com", "IncrementMember");
+        User nonMember = createUser("increment-non-member@example.com", "IncrementNonMember");
+        Group group = createGroup("Increment Privat", member);
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(nonMember);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void incrementOwnCounterReturnsBadRequestWhenAmountIsZeroOrNegative() throws Exception {
+        User member = createUser("increment-validation@example.com", "IncrementValidation");
+        User creator = createUser("increment-validation-creator@example.com", "IncrementValidationCreator");
+        Group group = createGroup("Increment Validation", creator);
+
+        createMembership(group, member, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 0))))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.amount").exists());
     }
 
     @Test

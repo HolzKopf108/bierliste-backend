@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.time.Instant;
 import org.hibernate.annotations.Check;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Table(
@@ -39,7 +40,8 @@ public class GroupMember {
     private Instant joinedAt = Instant.now();
 
     @PositiveOrZero
-    @Column(name = "strich_count", nullable = false, columnDefinition = "integer not null default 0")
+    @ColumnDefault("0")
+    @Column(name = "strich_count", nullable = false)
     private int strichCount = 0;
 
     public Long getId() { return id; }
