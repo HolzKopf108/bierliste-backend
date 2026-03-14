@@ -12,6 +12,7 @@ import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Table(name = "users", uniqueConstraints = @UniqueConstraint(columnNames = "email"))
@@ -41,6 +42,7 @@ public class User {
     @Column(nullable = false)
     private boolean googleUser = false;
 
+    @ColumnDefault("false")
     @Column(nullable = false)
     private boolean deleted = false;
 
