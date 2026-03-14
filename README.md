@@ -1,5 +1,5 @@
 ## Projektüberblick
-Dieses Repository enthält das Backend für die Bierlisten-App. Aktueller Funktionsumfang: Registrierung/Login (inkl. E-Mail-Verifizierung), JWT-Auth mit Refresh Tokens, Google Login, User-Profileinstellungen sowie ein globaler Counter für Bier-Striche. Gruppen, Einladungen und Striche pro Gruppe sind aktuell noch nicht implementiert.
+Dieses Repository enthält das Backend für die Bierlisten-App. Aktueller Funktionsumfang: Registrierung/Login (inkl. E-Mail-Verifizierung), JWT-Auth mit Refresh Tokens, Google Login, User-Profileinstellungen sowie Gruppen mit Mitgliedschaften und gruppenbezogenen Strichzählern.
 
 Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Data JPA. Die Datenbank-Konfiguration erfolgt per Umgebungsvariablen, E-Mails werden über den Brevo-API-Client versendet, und es gibt keine automatische API-Dokumentation oder Migrationen.
 
@@ -13,20 +13,19 @@ Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Da
 | Nutzerprofil lesen/ändern | Implementiert | UserController, UserService, UserDto | Updates nur bei gültigem lastUpdated |
 | Passwort ändern (eingeloggt) | Implementiert | UserController.updatePassword, UserService.updatePassword | Kein Check des alten Passworts |
 | Nutzer-Einstellungen | Implementiert | UserSettingsController, UserSettingsService, UserSettings | Theme + AutoSync |
-| Globaler Counter | Implementiert | CounterController, Counter | Ein globaler Zähler (id=1) |
-| Gruppen & Mitgliederverwaltung | Fehlt | - | Keine Modelle/Endpoints vorhanden |
+| Gruppen & Mitgliederverwaltung | Implementiert | GroupController, GroupService, Group, GroupMember | Mitgliedschaften pro Gruppe/User |
 | Einladungen zu Gruppen | Fehlt | - | - |
-| Striche pro Gruppe/History | Fehlt | - | - |
+| Striche pro Gruppe/History | Teilweise | GroupController, GroupService, GroupMember | Gruppenbezogener Counter vorhanden, keine History |
 | Rollen/Admin | Fehlt | - | Nur ROLE_USER |
 | OpenAPI/Swagger | Fehlt | - | Keine automatische API-Doku |
 
 ## Architektur und Module
 | Package | Zweck | Zentrale Komponenten |
 | --- | --- | --- |
-| controller | REST Endpunkte | AuthController, UserController, UserSettingsController, CounterController, PingController, TestController |
+| controller | REST Endpunkte | AuthController, UserController, UserSettingsController, GroupController, PingController, TestController |
 | service | Geschäftslogik | AuthService, UserService, UserSettingsService, RefreshTokenService, VerificationService, EmailService, BrevoEmailService |
-| repository | Persistenz (JPA) | UserRepository, UserSettingsRepository, RefreshTokenRepository, VerificationTokenRepository, CounterRepository |
-| model | JPA Entities | User, UserSettings, RefreshToken, VerificationToken, Counter |
+| repository | Persistenz (JPA) | UserRepository, UserSettingsRepository, RefreshTokenRepository, VerificationTokenRepository, GroupRepository, GroupMemberRepository |
+| model | JPA Entities | User, UserSettings, RefreshToken, VerificationToken, Group, GroupMember |
 | dto | Request/Response DTOs | RegisterDto, LoginDto, GoogleLoginDto, UserDto, UserPasswordDto, UserSettingsDto, CounterIncrementDto, CounterResponseDto |
 | security | JWT + Auth Filter | JwtTokenProvider, JwtAuthenticationFilter, CustomUserDetailsService |
 | config | Spring Konfiguration | SecurityConfig, WebConfig |
@@ -39,7 +38,7 @@ Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Da
 | UserSettings (user_settings) | user_id, theme, autoSyncEnabled, lastUpdated | 1:1 zu User |
 | RefreshToken (refresh_tokens) | token (unique), user_id, expiryDate | 1:1 zu User |
 | VerificationToken (verification_tokens) | code (6-stellig), user_id, expiryDate | 1:1 zu User |
-| Counter | id (fix 1), count | Keine |
+| GroupMember (group_members) | group_id, user_id, role, joinedAt, strichCount | n:1 zu Group, n:1 zu User |
 
 Hinweis: Es gibt keine Migrationen (Flyway/Liquibase). Das Schema wird via `spring.jpa.hibernate.ddl-auto=update` automatisch angepasst.
 
@@ -50,7 +49,7 @@ Hinweis: Es gibt keine Migrationen (Flyway/Liquibase). Das Schema wird via `spri
 - E-Mail-Verifizierung ist Voraussetzung für Login mit Passwort. Google Login markiert E-Mail als verifiziert.
 - Passwort-Hashing mit BCrypt.
 - Security: stateless, CSRF deaktiviert, CORS erlaubt aktuell nur `http://localhost:8100`. Rollen: nur ROLE_USER.
-- Public Endpoints: `/api/v1/auth/**`, `/api/v1/ping`, `/api/v1/counter`. Alle anderen Endpoints erfordern `Authorization: Bearer <accessToken>`.
+- Public Endpoints: `/api/v1/auth/**`, `/api/v1/ping`. Alle anderen Endpoints erfordern `Authorization: Bearer <accessToken>`.
 
 ## API
 Basis-Pfad: `/api/v1`  
@@ -82,8 +81,6 @@ Zeitformat für `Instant`: ISO-8601, z.B. `2026-01-25T12:34:56Z`
 | GET | /user/settings | ja | - | - | UserSettingsDto |
 | PUT | /user/settings | ja | - | UserSettingsDto {theme, autoSyncEnabled, lastUpdated} | UserSettingsDto |
 | POST | /user/settings/verifyPassword | ja | - | {password} | {valid} |
-| GET | /counter | nein | - | - | {count} |
-| POST | /counter | nein | - | CounterIncrementDto {amount} | CounterResponseDto {count} |
 | GET | /ping | nein | - | - | {status} |
 | GET | /email | ja | - | - | "OK" (text/plain, Test) |
 
@@ -319,28 +316,6 @@ Response:
 ```json
 {
   "valid": true
-}
-```
-
-#### GET /counter
-Response:
-```json
-{
-  "count": 42
-}
-```
-
-#### POST /counter
-Request:
-```json
-{
-  "amount": 3
-}
-```
-Response:
-```json
-{
-  "count": 3
 }
 ```
 
