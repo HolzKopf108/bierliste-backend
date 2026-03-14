@@ -141,6 +141,7 @@ public class AuthService {
         }
     }
 
+    @Transactional
     public AuthResponse refresh(String tokenStr) {
         RefreshToken old = refreshService.verify(tokenStr);
         User user = old.getUser();

@@ -1,18 +1,22 @@
 package com.bierliste.backend.service;
 
+import com.bierliste.backend.model.RefreshToken;
+import com.bierliste.backend.model.User;
+import com.bierliste.backend.repository.RefreshTokenRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import com.bierliste.backend.model.RefreshToken;
-import com.bierliste.backend.model.User;
-import com.bierliste.backend.repository.RefreshTokenRepository;
 import java.time.Instant;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class RefreshTokenService {
+    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
+
     @Value("${app.jwt.refresh-exp-ms}")
     private long refreshExpMs;
 
@@ -35,11 +39,20 @@ public class RefreshTokenService {
     }
 
     public RefreshToken verify(String tokenStr) {
+        if (tokenStr == null || tokenStr.isBlank()) {
+            log.warn("Refresh token verification failed: missing token");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refresh-Token ist erforderlich");
+        }
+
         RefreshToken token = repository.findByToken(tokenStr)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Ungültiges Refresh-Token"));
+            .orElseThrow(() -> {
+                log.warn("Refresh token verification failed: token not found");
+                return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Ungültiges Refresh-Token");
+            });
 
         if (token.getExpiryDate().isBefore(Instant.now())) {
             repository.delete(token);
+            log.warn("Refresh token verification failed: token expired for userId={}", token.getUser().getId());
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh-Token abgelaufen");
         }
 

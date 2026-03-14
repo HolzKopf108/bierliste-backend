@@ -9,8 +9,10 @@ import org.springframework.http.ResponseEntity;
 import jakarta.validation.Valid;
 import java.util.Map;
 
+import com.bierliste.backend.dto.AuthTokenResponseDto;
 import com.bierliste.backend.dto.GoogleLoginDto;
 import com.bierliste.backend.dto.LoginDto;
+import com.bierliste.backend.dto.RefreshTokenRequestDto;
 import com.bierliste.backend.dto.RegisterDto;
 import com.bierliste.backend.service.AuthService;
 
@@ -66,12 +68,12 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String,String>> refresh(@RequestBody Map<String,String> body) {
-        var resp = authService.refresh(body.get("refreshToken"));
-        return ResponseEntity.ok(Map.of(
-            "accessToken", resp.accessToken(),
-            "refreshToken", resp.refreshToken(),
-            "userEmail", resp.userEmail()
+    public ResponseEntity<AuthTokenResponseDto> refresh(@Valid @RequestBody RefreshTokenRequestDto dto) {
+        var resp = authService.refresh(dto.getRefreshToken());
+        return ResponseEntity.ok(new AuthTokenResponseDto(
+            resp.accessToken(),
+            resp.refreshToken(),
+            resp.userEmail()
         ));
     }
 
