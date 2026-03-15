@@ -82,7 +82,7 @@ public class GroupService {
     }
 
     public List<GroupMemberDto> getGroupMembersForUser(Long groupId, User user) {
-        groupAccessService.requireGroupMembership(groupId, user);
+        groupAccessService.requireGroupMembershipExists(groupId, user);
 
         return groupMemberRepository.findMemberDtosByGroupId(groupId);
     }

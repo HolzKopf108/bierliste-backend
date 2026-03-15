@@ -10,5 +10,7 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
 
     List<Group> findDistinctByMembers_User_IdOrderByNameAsc(Long userId);
 
+    boolean existsByIdAndMembers_User_Id(Long groupId, Long userId);
+
     Optional<Group> findByIdAndMembers_User_Id(Long groupId, Long userId);
 }

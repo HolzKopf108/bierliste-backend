@@ -33,6 +33,13 @@ public class GroupAccessService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
     }
 
+    public void requireGroupMembershipExists(Long groupId, User user) {
+        Long userId = requireAuthenticatedUserId(user);
+        if (!groupRepository.existsByIdAndMembers_User_Id(groupId, userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden");
+        }
+    }
+
     public GroupMember requireMembershipEntity(Long groupId, User user) {
         Long userId = requireAuthenticatedUserId(user);
         return groupMemberRepository.findByGroup_IdAndUser_Id(groupId, userId)

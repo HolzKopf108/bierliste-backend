@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.GroupDto;
+import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
@@ -12,7 +13,12 @@ import com.bierliste.backend.model.User;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import jakarta.validation.ConstraintViolationException;
+import java.util.List;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,6 +41,12 @@ class GroupServiceIntegrationTest {
 
     @Autowired
     private GroupMemberRepository groupMemberRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     @Test
     void createGroupCreatesGroupAndMembershipWithAdminRole() {
@@ -113,6 +125,33 @@ class GroupServiceIntegrationTest {
         assertThat(promotedMember.getId()).isEqualTo(promotedCandidate.getId());
         assertThat(promotedMember.getRole()).isEqualTo(GroupRole.ADMIN);
         assertThat(unchangedMember.getRole()).isEqualTo(GroupRole.MEMBER);
+    }
+
+    @Test
+    void getGroupMembersForUserLoadsLargeMemberListWithoutNPlusOneQueries() {
+        User requester = createUser("bulk-requester@example.com", "Requester");
+        Group group = createGroup("Große Gruppe", requester);
+        createMembership(group, requester, GroupRole.ADMIN);
+
+        for (int i = 0; i < 120; i++) {
+            User member = createUser("bulk-member-" + i + "@example.com", String.format("Member-%03d", i));
+            GroupMember membership = createMembership(group, member, GroupRole.MEMBER);
+            membership.setStrichCount(i);
+        }
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.clear();
+
+        List<GroupMemberDto> members = groupService.getGroupMembersForUser(group.getId(), requester);
+
+        assertThat(members).hasSize(121);
+        assertThat(members.getFirst().getUsername()).isEqualTo("Member-000");
+        assertThat(members.getFirst().getStrichCount()).isZero();
+        assertThat(members.getLast().getUsername()).isEqualTo("Requester");
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
     }
 
     private User createUser(String email, String username) {

@@ -43,10 +43,11 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
     int incrementStrichCount(@Param("groupId") Long groupId, @Param("userId") Long userId, @Param("amount") int amount);
 
     @Query("""
-        select new com.bierliste.backend.dto.GroupMemberDto(gm.user.id, gm.user.username, gm.joinedAt, gm.role, gm.strichCount)
+        select new com.bierliste.backend.dto.GroupMemberDto(u.id, u.username, gm.joinedAt, gm.role, gm.strichCount)
         from GroupMember gm
+        join gm.user u
         where gm.group.id = :groupId
-        order by gm.user.username, gm.user.id
+        order by u.username, u.id
         """)
     List<GroupMemberDto> findMemberDtosByGroupId(@Param("groupId") Long groupId);
 }
