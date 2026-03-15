@@ -122,7 +122,6 @@ class UserServiceIntegrationTest {
         UserSettings settings = new UserSettings();
         settings.setUser(user);
         settings.setTheme("light");
-        settings.setAutoSyncEnabled(true);
         settings.setLastUpdated(Instant.now());
         return userSettingsRepository.save(settings);
     }

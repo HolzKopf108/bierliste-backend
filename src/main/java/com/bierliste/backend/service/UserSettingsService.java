@@ -35,7 +35,6 @@ public class UserSettingsService {
 
         if (settings.getLastUpdated() == null || dto.getLastUpdated().isAfter(settings.getLastUpdated())) {
             settings.setTheme(dto.getTheme());
-            settings.setAutoSyncEnabled(dto.isAutoSyncEnabled());
             settings.setLastUpdated(dto.getLastUpdated());
         } 
 

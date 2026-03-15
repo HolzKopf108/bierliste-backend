@@ -28,9 +28,6 @@ public class UserSettings {
     private String theme;
 
     @Column(nullable = false)
-    private boolean autoSyncEnabled;
-
-    @Column(nullable = false)
     private Instant lastUpdated;
 
     public Long getId() { return id; }
@@ -39,8 +36,6 @@ public class UserSettings {
     public void setUser(User user) { this.user = user; }
     public String getTheme() { return theme; }
     public void setTheme(String theme) { this.theme = theme; }
-    public boolean isAutoSyncEnabled() { return autoSyncEnabled; }
-    public void setAutoSyncEnabled(boolean autoSyncEnabled) { this.autoSyncEnabled = autoSyncEnabled; }
     public Instant getLastUpdated() { return lastUpdated; }
     public void setLastUpdated(Instant lastUpdated) { this.lastUpdated = lastUpdated; }
 }

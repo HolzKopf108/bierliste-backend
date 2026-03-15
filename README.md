@@ -35,7 +35,7 @@ Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Da
 | Entity (Tabelle) | Wichtige Felder | Beziehungen |
 | --- | --- | --- |
 | User (users) | id, email (unique), username, passwordHash, emailVerified, googleUser, createdAt, lastUpdated | 1:1 zu UserSettings, RefreshToken, VerificationToken |
-| UserSettings (user_settings) | user_id, theme, autoSyncEnabled, lastUpdated | 1:1 zu User |
+| UserSettings (user_settings) | user_id, theme, lastUpdated | 1:1 zu User |
 | RefreshToken (refresh_tokens) | token (unique), user_id, expiryDate | 1:1 zu User |
 | VerificationToken (verification_tokens) | code (6-stellig), user_id, expiryDate | 1:1 zu User |
 | GroupMember (group_members) | group_id, user_id, role, joinedAt, strichCount | n:1 zu Group, n:1 zu User |
@@ -79,7 +79,7 @@ Zeitformat für `Instant`: ISO-8601, z.B. `2026-01-25T12:34:56Z`
 | POST | /user/logout | ja | - | {refreshToken} | {message} |
 | DELETE | /user/delete/account | ja | - | - | {message} |
 | GET | /user/settings | ja | - | - | UserSettingsDto |
-| PUT | /user/settings | ja | - | UserSettingsDto {theme, autoSyncEnabled, lastUpdated} | UserSettingsDto |
+| PUT | /user/settings | ja | - | UserSettingsDto {theme, lastUpdated} | UserSettingsDto |
 | POST | /user/settings/verifyPassword | ja | - | {password} | {valid} |
 | GET | /ping | nein | - | - | {status} |
 | GET | /email | ja | - | - | "OK" (text/plain, Test) |
@@ -282,7 +282,6 @@ Response:
 ```json
 {
   "theme": "dark",
-  "autoSyncEnabled": true,
   "lastUpdated": "2026-01-25T12:34:56Z"
 }
 ```
@@ -292,7 +291,6 @@ Request:
 ```json
 {
   "theme": "light",
-  "autoSyncEnabled": false,
   "lastUpdated": "2026-01-25T12:34:56Z"
 }
 ```
@@ -300,7 +298,6 @@ Response:
 ```json
 {
   "theme": "light",
-  "autoSyncEnabled": false,
   "lastUpdated": "2026-01-25T12:34:56Z"
 }
 ```
