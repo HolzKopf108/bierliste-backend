@@ -264,6 +264,18 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getGroupMembersReturnsNotFoundWhenGroupDoesNotExist() throws Exception {
+        User user = createUser("members-missing-group@example.com", "MissingGroupUser");
+        String token = jwtTokenProvider.createAccessToken(user);
+
+        mockMvc.perform(get("/api/v1/groups/999999/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
     void getOwnCounterReturnsPersistedStrichCountForMember() throws Exception {
         User member = createUser("counter-member@example.com", "CounterMember");
         User creator = createUser("counter-creator@example.com", "CounterCreator");
