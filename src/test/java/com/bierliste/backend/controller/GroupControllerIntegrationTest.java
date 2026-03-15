@@ -221,6 +221,32 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getGroupMembersUsesStableSortingForDuplicateUsernames() throws Exception {
+        User requester = createUser("duplicate-requester@example.com", "Requester");
+        User firstChris = createUser("duplicate-first@example.com", "Chris");
+        User secondChris = createUser("duplicate-second@example.com", "Chris");
+        Group group = createGroup("Duplicate Namen", requester);
+
+        createMembership(group, requester, GroupRole.ADMIN);
+        createMembership(group, firstChris, GroupRole.MEMBER);
+        createMembership(group, secondChris, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(requester);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.length()").value(3))
+            .andExpect(jsonPath("$[0].userId").value(firstChris.getId()))
+            .andExpect(jsonPath("$[0].username").value("Chris"))
+            .andExpect(jsonPath("$[1].userId").value(secondChris.getId()))
+            .andExpect(jsonPath("$[1].username").value("Chris"))
+            .andExpect(jsonPath("$[2].userId").value(requester.getId()))
+            .andExpect(jsonPath("$[2].username").value("Requester"));
+    }
+
+    @Test
     void getGroupMembersReturnsNotFoundForNonMember() throws Exception {
         User member = createUser("members-visible@example.com", "Visible");
         User nonMember = createUser("members-hidden@example.com", "Hidden");
