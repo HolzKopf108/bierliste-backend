@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
+import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupMember;
@@ -155,6 +156,17 @@ class GroupServiceIntegrationTest {
         assertThat(members.getFirst().getStrichCount()).isZero();
         assertThat(members.getLast().getUsername()).isEqualTo("Requester");
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+    }
+
+    @Test
+    void getOwnRoleForGroupReturnsPersistedMembershipRole() {
+        User admin = createUser("service-role-admin@example.com", "RoleAdmin");
+        Group group = createGroup("Service Role", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        GroupRoleDto ownRole = groupService.getOwnRoleForGroup(group.getId(), admin);
+
+        assertThat(ownRole.getRole()).isEqualTo(GroupRole.ADMIN);
     }
 
     @Test

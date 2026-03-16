@@ -4,6 +4,7 @@ import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.CounterIncrementDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
+import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.Group;
@@ -89,6 +90,11 @@ public class GroupService {
     public int getOwnCounterForGroup(Long groupId, User user) {
         GroupMember membership = groupAuthorizationService.requireMemberEntity(groupId, user);
         return membership.getStrichCount();
+    }
+
+    public GroupRoleDto getOwnRoleForGroup(Long groupId, User user) {
+        GroupMember membership = groupAuthorizationService.requireMemberEntity(groupId, user);
+        return new GroupRoleDto(membership.getRole());
     }
 
     @Transactional

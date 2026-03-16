@@ -91,6 +91,7 @@ Zeitformat für `Instant`: ISO-8601, z.B. `2026-01-25T12:34:56Z`
 | GET | /user/settings | ja | - | - | UserSettingsDto |
 | PUT | /user/settings | ja | - | UserSettingsDto {theme, lastUpdated} | UserSettingsDto |
 | POST | /user/settings/verifyPassword | ja | - | {password} | {valid} |
+| GET | /groups/{groupId}/me/role | ja | - | - | GroupRoleDto {role} |
 | POST | /groups/{groupId}/roles/promote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |
 | POST | /groups/{groupId}/roles/demote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |
 | GET | /ping | nein | - | - | {status} |

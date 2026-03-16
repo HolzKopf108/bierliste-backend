@@ -93,6 +93,14 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getOwnRoleReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(get("/api/v1/groups/1/me/role"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void incrementOwnCounterReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
         mockMvc.perform(post("/api/v1/groups/1/me/counter/increment")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -325,6 +333,40 @@ class GroupControllerIntegrationTest {
         String token = jwtTokenProvider.createAccessToken(nonMember);
 
         mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/me/counter")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void getOwnRoleReturnsMembershipRoleForMember() throws Exception {
+        User member = createUser("role-member@example.com", "RoleMember");
+        User creator = createUser("role-creator@example.com", "RoleCreator");
+        Group group = createGroup("Role Gruppe", creator);
+
+        createMembership(group, member, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/me/role")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.role").value("MEMBER"));
+    }
+
+    @Test
+    void getOwnRoleReturnsNotFoundForNonMember() throws Exception {
+        User member = createUser("role-group-member@example.com", "Member");
+        User nonMember = createUser("role-group-non-member@example.com", "NonMember");
+        Group group = createGroup("Private Role Gruppe", member);
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(nonMember);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/me/role")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

@@ -5,6 +5,7 @@ import com.bierliste.backend.dto.CounterIncrementDto;
 import com.bierliste.backend.dto.CounterResponseDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
+import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.User;
@@ -53,6 +54,12 @@ public class GroupController {
     public ResponseEntity<CounterResponseDto> getOwnCounter(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         groupAuthorizationService.requireMember(groupId, user);
         return ResponseEntity.ok(new CounterResponseDto(groupService.getOwnCounterForGroup(groupId, user)));
+    }
+
+    @GetMapping("/{groupId}/me/role")
+    public ResponseEntity<GroupRoleDto> getOwnRole(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupAuthorizationService.requireMember(groupId, user);
+        return ResponseEntity.ok(groupService.getOwnRoleForGroup(groupId, user));
     }
 
     @PostMapping("/{groupId}/me/counter/increment")
