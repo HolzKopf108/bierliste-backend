@@ -16,7 +16,7 @@ Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Da
 | Gruppen & Mitgliederverwaltung | Implementiert | GroupController, GroupService, Group, GroupMember | Mitgliedschaften pro Gruppe/User |
 | Einladungen zu Gruppen | Fehlt | - | - |
 | Striche pro Gruppe/History | Teilweise | GroupController, GroupService, GroupMember | Gruppenbezogener Counter vorhanden, keine History |
-| Rollen/Admin | Fehlt | - | Nur ROLE_USER |
+| Rollen/Admin pro Gruppe | Implementiert | GroupRole, GroupMember, GroupAuthorizationService | `ADMIN` und `MEMBER` werden in Mitgliedschaften geprüft |
 | OpenAPI/Swagger | Fehlt | - | Keine automatische API-Doku |
 
 ## Architektur und Module
@@ -50,6 +50,12 @@ Hinweis: Es gibt keine Migrationen (Flyway/Liquibase). Das Schema wird via `spri
 - Passwort-Hashing mit BCrypt.
 - Security: stateless, CSRF deaktiviert, CORS erlaubt aktuell nur `http://localhost:8100`. Rollen: nur ROLE_USER.
 - Public Endpoints: `/api/v1/auth/**`, `/api/v1/ping`. Alle anderen Endpoints erfordern `Authorization: Bearer <accessToken>`.
+
+### Gruppenautorisierung
+- `GroupController` und `GroupService` verwenden zentral `GroupAuthorizationService`.
+- Nicht eingeloggt: HTTP 401 mit `{"error":"Nicht authentifiziert"}`.
+- Gruppenendpunkte mit Mitgliedschaftspflicht liefern bei fehlender Gruppe oder fehlender Mitgliedschaft bewusst HTTP 404 mit `{"error":"Gruppe nicht gefunden"}`.
+- Wart-Prüfungen verwenden `GroupRole.ADMIN` und liefern für normale Mitglieder HTTP 403 mit `{"error":"Wart-Rechte erforderlich"}`.
 
 ## API
 Basis-Pfad: `/api/v1`  

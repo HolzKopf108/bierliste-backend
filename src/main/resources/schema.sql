@@ -1,1 +1,11 @@
 ALTER TABLE IF EXISTS user_settings DROP COLUMN IF EXISTS auto_sync_enabled;
+
+ALTER TABLE IF EXISTS group_members ADD COLUMN IF NOT EXISTS role VARCHAR(30);
+UPDATE group_members
+SET role = 'MEMBER'
+WHERE role IS NULL OR role NOT IN ('MEMBER', 'ADMIN');
+ALTER TABLE IF EXISTS group_members ALTER COLUMN role SET DEFAULT 'MEMBER';
+ALTER TABLE IF EXISTS group_members ALTER COLUMN role SET NOT NULL;
+ALTER TABLE IF EXISTS group_members DROP CONSTRAINT IF EXISTS ck_group_members_role;
+ALTER TABLE IF EXISTS group_members
+    ADD CONSTRAINT ck_group_members_role CHECK (role IN ('MEMBER', 'ADMIN'));

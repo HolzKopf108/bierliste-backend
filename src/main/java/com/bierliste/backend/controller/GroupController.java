@@ -7,6 +7,7 @@ import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.model.User;
+import com.bierliste.backend.service.GroupAuthorizationService;
 import com.bierliste.backend.service.GroupService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,28 +23,34 @@ import java.util.Map;
 public class GroupController {
 
     private final GroupService groupService;
+    private final GroupAuthorizationService groupAuthorizationService;
 
-    public GroupController(GroupService groupService) {
+    public GroupController(GroupService groupService, GroupAuthorizationService groupAuthorizationService) {
         this.groupService = groupService;
+        this.groupAuthorizationService = groupAuthorizationService;
     }
 
     @GetMapping
     public ResponseEntity<List<GroupSummaryDto>> getGroups(@AuthenticationPrincipal User user) {
+        groupAuthorizationService.requireAuthenticatedUserId(user);
         return ResponseEntity.ok(groupService.getGroupsForUser(user));
     }
 
     @GetMapping("/{groupId}")
     public ResponseEntity<GroupDto> getGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupAuthorizationService.requireMember(groupId, user);
         return ResponseEntity.ok(groupService.getGroupForUser(groupId, user));
     }
 
     @GetMapping("/{groupId}/members")
     public ResponseEntity<List<GroupMemberDto>> getGroupMembers(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupAuthorizationService.requireMember(groupId, user);
         return ResponseEntity.ok(groupService.getGroupMembersForUser(groupId, user));
     }
 
     @GetMapping("/{groupId}/me/counter")
     public ResponseEntity<CounterResponseDto> getOwnCounter(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupAuthorizationService.requireMember(groupId, user);
         return ResponseEntity.ok(new CounterResponseDto(groupService.getOwnCounterForGroup(groupId, user)));
     }
 
@@ -53,17 +60,20 @@ public class GroupController {
         @Valid @RequestBody CounterIncrementDto dto,
         @AuthenticationPrincipal User user
     ) {
+        groupAuthorizationService.requireMember(groupId, user);
         return ResponseEntity.ok(new CounterResponseDto(groupService.incrementOwnCounterForGroup(groupId, dto, user)));
     }
 
     @PostMapping("/{groupId}/join")
     public ResponseEntity<Map<String, String>> joinGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupAuthorizationService.requireAuthenticatedUserId(user);
         groupService.joinGroup(groupId, user);
         return ResponseEntity.ok(Map.of("message", "Mitgliedschaft aktiv"));
     }
 
     @PostMapping("/{groupId}/leave")
     public ResponseEntity<Map<String, String>> leaveGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupAuthorizationService.requireMember(groupId, user);
         groupService.leaveGroup(groupId, user);
         return ResponseEntity.ok(Map.of("message", "Gruppe verlassen"));
     }
@@ -73,6 +83,7 @@ public class GroupController {
         @Valid @RequestBody CreateGroupDto dto,
         @AuthenticationPrincipal User user
     ) {
+        groupAuthorizationService.requireAuthenticatedUserId(user);
         GroupDto createdGroup = groupService.createGroup(dto, user);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdGroup);
     }

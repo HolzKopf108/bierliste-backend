@@ -33,6 +33,7 @@ public class GroupMember {
     private User user;
 
     @Enumerated(EnumType.STRING)
+    @ColumnDefault("'MEMBER'")
     @Column(nullable = false, length = 30)
     private GroupRole role = GroupRole.MEMBER;
 

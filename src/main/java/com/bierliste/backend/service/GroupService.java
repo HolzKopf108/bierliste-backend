@@ -24,21 +24,19 @@ public class GroupService {
 
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
-    private final GroupAccessService groupAccessService;
+    private final GroupAuthorizationService groupAuthorizationService;
 
     public GroupService(GroupRepository groupRepository,
                         GroupMemberRepository groupMemberRepository,
-                        GroupAccessService groupAccessService) {
+                        GroupAuthorizationService groupAuthorizationService) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
-        this.groupAccessService = groupAccessService;
+        this.groupAuthorizationService = groupAuthorizationService;
     }
 
     @Transactional
     public GroupDto createGroup(CreateGroupDto dto, User creator) {
-        if (creator == null || creator.getId() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Nicht authentifiziert");
-        }
+        groupAuthorizationService.requireAuthenticatedUserId(creator);
 
         Group group = new Group();
         group.setName(dto.getName().trim());
@@ -62,7 +60,7 @@ public class GroupService {
     }
 
     public List<GroupSummaryDto> getGroupsForUser(User user) {
-        Long userId = groupAccessService.requireAuthenticatedUserId(user);
+        Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
 
         return groupRepository.findDistinctByMembers_User_IdOrderByNameAsc(userId)
             .stream()
@@ -71,7 +69,7 @@ public class GroupService {
     }
 
     public GroupDto getGroupForUser(Long groupId, User user) {
-        Group group = groupAccessService.requireGroupMembership(groupId, user);
+        Group group = groupAuthorizationService.requireMemberGroup(groupId, user);
 
         return new GroupDto(
             group.getId(),
@@ -82,20 +80,20 @@ public class GroupService {
     }
 
     public List<GroupMemberDto> getGroupMembersForUser(Long groupId, User user) {
-        groupAccessService.requireGroupMembershipExists(groupId, user);
+        groupAuthorizationService.requireMember(groupId, user);
 
         return groupMemberRepository.findMemberDtosByGroupId(groupId);
     }
 
     public int getOwnCounterForGroup(Long groupId, User user) {
-        GroupMember membership = groupAccessService.requireMembershipEntity(groupId, user);
+        GroupMember membership = groupAuthorizationService.requireMemberEntity(groupId, user);
         return membership.getStrichCount();
     }
 
     @Transactional
     public int incrementOwnCounterForGroup(Long groupId, CounterIncrementDto dto, User user) {
-        Long userId = groupAccessService.requireAuthenticatedUserId(user);
-        groupAccessService.requireMembershipEntity(groupId, user);
+        Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
+        groupAuthorizationService.requireMemberEntity(groupId, user);
 
         groupMemberRepository.incrementStrichCount(groupId, userId, dto.getAmount());
 
@@ -105,7 +103,7 @@ public class GroupService {
 
     @Transactional
     public void joinGroup(Long groupId, User user) {
-        Long userId = groupAccessService.requireAuthenticatedUserId(user);
+        Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
 
         Group group = groupRepository.findById(groupId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
@@ -130,13 +128,13 @@ public class GroupService {
 
     @Transactional
     public void leaveGroup(Long groupId, User user) {
-        GroupMember membership = groupAccessService.requireMembershipEntity(groupId, user);
+        GroupMember membership = groupAuthorizationService.requireMemberEntity(groupId, user);
         removeMembershipAndCleanupGroup(membership);
     }
 
     @Transactional
     public void removeUserFromAllGroups(User user) {
-        Long userId = groupAccessService.requireAuthenticatedUserId(user);
+        Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
         List<GroupMember> memberships = groupMemberRepository.findAllByUser_Id(userId);
         for (GroupMember membership : memberships) {
             removeMembershipAndCleanupGroup(membership);
