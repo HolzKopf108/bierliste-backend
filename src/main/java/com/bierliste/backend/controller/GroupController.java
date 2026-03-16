@@ -6,6 +6,7 @@ import com.bierliste.backend.dto.CounterResponseDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
+import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.service.GroupAuthorizationService;
 import com.bierliste.backend.service.GroupService;
@@ -76,6 +77,16 @@ public class GroupController {
         groupAuthorizationService.requireMember(groupId, user);
         groupService.leaveGroup(groupId, user);
         return ResponseEntity.ok(Map.of("message", "Gruppe verlassen"));
+    }
+
+    @PostMapping("/{groupId}/roles/promote")
+    public ResponseEntity<GroupMemberDto> promoteGroupMember(
+        @PathVariable Long groupId,
+        @Valid @RequestBody PromoteGroupMemberDto dto,
+        @AuthenticationPrincipal User user
+    ) {
+        groupAuthorizationService.requireWart(groupId, user);
+        return ResponseEntity.ok(groupService.promoteGroupMember(groupId, dto, user));
     }
 
     @PostMapping

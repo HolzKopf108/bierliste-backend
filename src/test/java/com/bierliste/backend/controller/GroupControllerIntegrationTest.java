@@ -119,6 +119,16 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void promoteGroupMemberReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(post("/api/v1/groups/1/roles/promote")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", 1))))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void getGroupsReturnsOnlyGroupsForAuthenticatedUser() throws Exception {
         User user = createUser("groups-user@example.com");
         User secondUser = createUser("groups-second@example.com");
@@ -488,6 +498,98 @@ class GroupControllerIntegrationTest {
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void promoteGroupMemberPromotesMemberWhenCallerIsAdmin() throws Exception {
+        User admin = createUser("promote-admin@example.com", "PromoteAdmin");
+        User member = createUser("promote-member@example.com", "PromoteMember");
+        Group group = createGroup("Promotion Gruppe", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/promote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", member.getId()))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.userId").value(member.getId()))
+            .andExpect(jsonPath("$.username").value("PromoteMember"))
+            .andExpect(jsonPath("$.role").value("ADMIN"))
+            .andExpect(jsonPath("$.joinedAt").isNotEmpty())
+            .andExpect(jsonPath("$.strichCount").value(0));
+
+        GroupMember promotedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), member.getId()).orElseThrow();
+        assertThat(promotedMembership.getRole()).isEqualTo(GroupRole.ADMIN);
+    }
+
+    @Test
+    void promoteGroupMemberReturnsForbiddenWhenCallerIsNotAdmin() throws Exception {
+        User admin = createUser("promote-rights-admin@example.com", "Admin");
+        User member = createUser("promote-rights-member@example.com", "Member");
+        User target = createUser("promote-rights-target@example.com", "Target");
+        Group group = createGroup("Promotion Rechte", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+        createMembership(group, target, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/promote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", target.getId()))))
+            .andExpect(status().isForbidden())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Wart-Rechte erforderlich"));
+
+        GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(targetMembership.getRole()).isEqualTo(GroupRole.MEMBER);
+    }
+
+    @Test
+    void promoteGroupMemberReturnsNotFoundWhenTargetIsNotMember() throws Exception {
+        User admin = createUser("promote-missing-admin@example.com", "Admin");
+        User outsider = createUser("promote-missing-outsider@example.com", "Outsider");
+        Group group = createGroup("Promotion Missing", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/promote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", outsider.getId()))))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppenmitglied nicht gefunden"));
+    }
+
+    @Test
+    void promoteGroupMemberIsIdempotentWhenTargetIsAlreadyAdmin() throws Exception {
+        User admin = createUser("promote-idempotent-admin@example.com", "Admin");
+        User target = createUser("promote-idempotent-target@example.com", "Target");
+        Group group = createGroup("Promotion Idempotent", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, target, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/promote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", target.getId()))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.userId").value(target.getId()))
+            .andExpect(jsonPath("$.role").value("ADMIN"));
     }
 
     @Test

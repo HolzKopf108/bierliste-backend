@@ -5,6 +5,7 @@ import com.bierliste.backend.dto.CounterIncrementDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
+import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
@@ -133,6 +134,20 @@ public class GroupService {
     }
 
     @Transactional
+    public GroupMemberDto promoteGroupMember(Long groupId, PromoteGroupMemberDto dto, User user) {
+        groupAuthorizationService.requireWart(groupId, user);
+
+        GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, dto.getTargetUserId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
+
+        if (targetMembership.getRole() != GroupRole.ADMIN) {
+            targetMembership.setRole(GroupRole.ADMIN);
+        }
+
+        return toGroupMemberDto(targetMembership);
+    }
+
+    @Transactional
     public void removeUserFromAllGroups(User user) {
         Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
         List<GroupMember> memberships = groupMemberRepository.findAllByUser_Id(userId);
@@ -159,5 +174,15 @@ public class GroupService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Admin konnte nicht neu zugewiesen werden"));
             newAdmin.setRole(GroupRole.ADMIN);
         }
+    }
+
+    private GroupMemberDto toGroupMemberDto(GroupMember membership) {
+        return new GroupMemberDto(
+            membership.getUser().getId(),
+            membership.getUser().getUsername(),
+            membership.getJoinedAt(),
+            membership.getRole(),
+            membership.getStrichCount()
+        );
     }
 }

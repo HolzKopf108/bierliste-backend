@@ -56,6 +56,8 @@ Hinweis: Es gibt keine Migrationen (Flyway/Liquibase). Das Schema wird via `spri
 - Nicht eingeloggt: HTTP 401 mit `{"error":"Nicht authentifiziert"}`.
 - Gruppenendpunkte mit Mitgliedschaftspflicht liefern bei fehlender Gruppe oder fehlender Mitgliedschaft bewusst HTTP 404 mit `{"error":"Gruppe nicht gefunden"}`.
 - Wart-Prüfungen verwenden `GroupRole.ADMIN` und liefern für normale Mitglieder HTTP 403 mit `{"error":"Wart-Rechte erforderlich"}`.
+- `POST /api/v1/groups/{groupId}/roles/promote` ist idempotent und liefert immer den aktuellen Stand des Ziel-Mitglieds zurück; ist das Ziel bereits `ADMIN`, bleibt die Antwort dennoch HTTP 200.
+- Schlägt eine Promotion fehl, weil `targetUserId` kein Mitglied der Gruppe ist, liefert der Endpoint HTTP 404 mit `{"error":"Gruppenmitglied nicht gefunden"}`.
 
 ## API
 Basis-Pfad: `/api/v1`  
@@ -87,6 +89,7 @@ Zeitformat für `Instant`: ISO-8601, z.B. `2026-01-25T12:34:56Z`
 | GET | /user/settings | ja | - | - | UserSettingsDto |
 | PUT | /user/settings | ja | - | UserSettingsDto {theme, lastUpdated} | UserSettingsDto |
 | POST | /user/settings/verifyPassword | ja | - | {password} | {valid} |
+| POST | /groups/{groupId}/roles/promote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |
 | GET | /ping | nein | - | - | {status} |
 | GET | /email | ja | - | - | "OK" (text/plain, Test) |
 

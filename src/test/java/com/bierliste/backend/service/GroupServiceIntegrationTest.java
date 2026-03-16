@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
+import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
@@ -22,8 +23,10 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -152,6 +155,45 @@ class GroupServiceIntegrationTest {
         assertThat(members.getFirst().getStrichCount()).isZero();
         assertThat(members.getLast().getUsername()).isEqualTo("Requester");
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+    }
+
+    @Test
+    void promoteGroupMemberPromotesTargetMemberToAdmin() {
+        User admin = createUser("service-promote-admin@example.com", "ServiceAdmin");
+        User target = createUser("service-promote-target@example.com", "ServiceTarget");
+        Group group = createGroup("Service Promote", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, target, GroupRole.MEMBER);
+
+        PromoteGroupMemberDto dto = new PromoteGroupMemberDto();
+        dto.setTargetUserId(target.getId());
+
+        GroupMemberDto promotedMember = groupService.promoteGroupMember(group.getId(), dto, admin);
+
+        GroupMember persistedTarget = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(promotedMember.getUserId()).isEqualTo(target.getId());
+        assertThat(promotedMember.getRole()).isEqualTo(GroupRole.ADMIN);
+        assertThat(persistedTarget.getRole()).isEqualTo(GroupRole.ADMIN);
+    }
+
+    @Test
+    void promoteGroupMemberRejectsNonAdminCaller() {
+        User admin = createUser("service-promote-owner@example.com", "ServiceOwner");
+        User caller = createUser("service-promote-member@example.com", "ServiceMember");
+        User target = createUser("service-promote-other@example.com", "ServiceOther");
+        Group group = createGroup("Service Promote Forbidden", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, caller, GroupRole.MEMBER);
+        createMembership(group, target, GroupRole.MEMBER);
+
+        PromoteGroupMemberDto dto = new PromoteGroupMemberDto();
+        dto.setTargetUserId(target.getId());
+
+        assertThatThrownBy(() -> groupService.promoteGroupMember(group.getId(), dto, caller))
+            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                assertThat(ex.getReason()).isEqualTo("Wart-Rechte erforderlich");
+            });
     }
 
     private User createUser(String email, String username) {
