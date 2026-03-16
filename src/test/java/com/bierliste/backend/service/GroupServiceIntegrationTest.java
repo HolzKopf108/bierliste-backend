@@ -209,6 +209,22 @@ class GroupServiceIntegrationTest {
     }
 
     @Test
+    void promoteGroupMemberReturnsNotFoundWhenTargetUserDoesNotExist() {
+        User admin = createUser("service-promote-missing-user-admin@example.com", "ServiceAdmin");
+        Group group = createGroup("Service Promote Missing User", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        PromoteGroupMemberDto dto = new PromoteGroupMemberDto();
+        dto.setTargetUserId(999999L);
+
+        assertThatThrownBy(() -> groupService.promoteGroupMember(group.getId(), dto, admin))
+            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                assertThat(ex.getReason()).isEqualTo("User nicht gefunden");
+            });
+    }
+
+    @Test
     void demoteGroupMemberChangesAdminToMemberWhenAnotherAdminRemains() {
         User caller = createUser("service-demote-caller@example.com", "CallerAdmin");
         User target = createUser("service-demote-target@example.com", "TargetAdmin");
@@ -244,6 +260,22 @@ class GroupServiceIntegrationTest {
             .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
                 assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
                 assertThat(ex.getReason()).isEqualTo("Wart-Rechte erforderlich");
+            });
+    }
+
+    @Test
+    void demoteGroupMemberReturnsNotFoundWhenTargetUserDoesNotExist() {
+        User admin = createUser("service-demote-missing-user-admin@example.com", "ServiceAdmin");
+        Group group = createGroup("Service Demote Missing User", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        PromoteGroupMemberDto dto = new PromoteGroupMemberDto();
+        dto.setTargetUserId(999999L);
+
+        assertThatThrownBy(() -> groupService.demoteGroupMember(group.getId(), dto, admin))
+            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                assertThat(ex.getReason()).isEqualTo("User nicht gefunden");
             });
     }
 

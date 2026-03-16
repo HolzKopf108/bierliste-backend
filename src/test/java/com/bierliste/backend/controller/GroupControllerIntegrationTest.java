@@ -624,6 +624,24 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void promoteGroupMemberReturnsNotFoundWhenTargetUserDoesNotExist() throws Exception {
+        User admin = createUser("promote-missing-user-admin@example.com", "Admin");
+        Group group = createGroup("Promotion Missing User", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/promote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", 999999L))))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("User nicht gefunden"));
+    }
+
+    @Test
     void promoteGroupMemberIsIdempotentWhenTargetIsAlreadyAdmin() throws Exception {
         User admin = createUser("promote-idempotent-admin@example.com", "Admin");
         User target = createUser("promote-idempotent-target@example.com", "Target");
@@ -713,6 +731,24 @@ class GroupControllerIntegrationTest {
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.error").value("Gruppenmitglied nicht gefunden"));
+    }
+
+    @Test
+    void demoteGroupMemberReturnsNotFoundWhenTargetUserDoesNotExist() throws Exception {
+        User admin = createUser("demote-missing-user-admin@example.com", "Admin");
+        Group group = createGroup("Demotion Missing User", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/demote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", 999999L))))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("User nicht gefunden"));
     }
 
     @Test

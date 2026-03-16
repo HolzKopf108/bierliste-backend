@@ -13,6 +13,7 @@ import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
+import com.bierliste.backend.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -26,13 +27,16 @@ public class GroupService {
 
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
+    private final UserRepository userRepository;
     private final GroupAuthorizationService groupAuthorizationService;
 
     public GroupService(GroupRepository groupRepository,
                         GroupMemberRepository groupMemberRepository,
+                        UserRepository userRepository,
                         GroupAuthorizationService groupAuthorizationService) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
+        this.userRepository = userRepository;
         this.groupAuthorizationService = groupAuthorizationService;
     }
 
@@ -143,8 +147,7 @@ public class GroupService {
     public GroupMemberDto promoteGroupMember(Long groupId, PromoteGroupMemberDto dto, User user) {
         groupAuthorizationService.requireWart(groupId, user);
 
-        GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, dto.getTargetUserId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
+        GroupMember targetMembership = requireTargetMembership(groupId, dto.getTargetUserId());
 
         if (targetMembership.getRole() != GroupRole.ADMIN) {
             targetMembership.setRole(GroupRole.ADMIN);
@@ -157,8 +160,7 @@ public class GroupService {
     public GroupMemberDto demoteGroupMember(Long groupId, PromoteGroupMemberDto dto, User user) {
         groupAuthorizationService.requireWart(groupId, user);
 
-        GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, dto.getTargetUserId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
+        GroupMember targetMembership = requireTargetMembership(groupId, dto.getTargetUserId());
 
         if (targetMembership.getRole() == GroupRole.ADMIN
             && groupMemberRepository.countByGroup_IdAndRole(groupId, GroupRole.ADMIN) <= 1) {
@@ -199,6 +201,15 @@ public class GroupService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Admin konnte nicht neu zugewiesen werden"));
             newAdmin.setRole(GroupRole.ADMIN);
         }
+    }
+
+    private GroupMember requireTargetMembership(Long groupId, Long targetUserId) {
+        if (!userRepository.existsById(targetUserId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden");
+        }
+
+        return groupMemberRepository.findByGroup_IdAndUser_Id(groupId, targetUserId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
     }
 
     private GroupMemberDto toGroupMemberDto(GroupMember membership) {
