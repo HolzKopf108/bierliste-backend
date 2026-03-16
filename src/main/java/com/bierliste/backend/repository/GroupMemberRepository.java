@@ -27,6 +27,8 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
 
     boolean existsByGroup_IdAndRole(Long groupId, GroupRole role);
 
+    long countByGroup_IdAndRole(Long groupId, GroupRole role);
+
     Optional<GroupMember> findFirstByGroup_IdOrderByJoinedAtAscIdAsc(Long groupId);
 
     @Query("""

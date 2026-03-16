@@ -196,6 +196,61 @@ class GroupServiceIntegrationTest {
             });
     }
 
+    @Test
+    void demoteGroupMemberChangesAdminToMemberWhenAnotherAdminRemains() {
+        User caller = createUser("service-demote-caller@example.com", "CallerAdmin");
+        User target = createUser("service-demote-target@example.com", "TargetAdmin");
+        Group group = createGroup("Service Demote", caller);
+        createMembership(group, caller, GroupRole.ADMIN);
+        createMembership(group, target, GroupRole.ADMIN);
+
+        PromoteGroupMemberDto dto = new PromoteGroupMemberDto();
+        dto.setTargetUserId(target.getId());
+
+        GroupMemberDto demotedMember = groupService.demoteGroupMember(group.getId(), dto, caller);
+
+        GroupMember persistedTarget = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(demotedMember.getUserId()).isEqualTo(target.getId());
+        assertThat(demotedMember.getRole()).isEqualTo(GroupRole.MEMBER);
+        assertThat(persistedTarget.getRole()).isEqualTo(GroupRole.MEMBER);
+    }
+
+    @Test
+    void demoteGroupMemberRejectsNonAdminCaller() {
+        User admin = createUser("service-demote-owner@example.com", "ServiceOwner");
+        User caller = createUser("service-demote-member@example.com", "ServiceMember");
+        User target = createUser("service-demote-target-other@example.com", "ServiceTarget");
+        Group group = createGroup("Service Demote Forbidden", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, caller, GroupRole.MEMBER);
+        createMembership(group, target, GroupRole.ADMIN);
+
+        PromoteGroupMemberDto dto = new PromoteGroupMemberDto();
+        dto.setTargetUserId(target.getId());
+
+        assertThatThrownBy(() -> groupService.demoteGroupMember(group.getId(), dto, caller))
+            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                assertThat(ex.getReason()).isEqualTo("Wart-Rechte erforderlich");
+            });
+    }
+
+    @Test
+    void demoteGroupMemberBlocksLastRemainingAdmin() {
+        User admin = createUser("service-demote-last-admin@example.com", "LastAdmin");
+        Group group = createGroup("Service Last Admin", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        PromoteGroupMemberDto dto = new PromoteGroupMemberDto();
+        dto.setTargetUserId(admin.getId());
+
+        assertThatThrownBy(() -> groupService.demoteGroupMember(group.getId(), dto, admin))
+            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                assertThat(ex.getReason()).isEqualTo("Mindestens ein Wart muss in der Gruppe verbleiben");
+            });
+    }
+
     private User createUser(String email, String username) {
         User user = new User();
         user.setEmail(email);

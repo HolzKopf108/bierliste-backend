@@ -129,6 +129,16 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void demoteGroupMemberReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(post("/api/v1/groups/1/roles/demote")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", 1))))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void getGroupsReturnsOnlyGroupsForAuthenticatedUser() throws Exception {
         User user = createUser("groups-user@example.com");
         User secondUser = createUser("groups-second@example.com");
@@ -590,6 +600,119 @@ class GroupControllerIntegrationTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.userId").value(target.getId()))
             .andExpect(jsonPath("$.role").value("ADMIN"));
+    }
+
+    @Test
+    void demoteGroupMemberDemotesAdminWhenAnotherAdminRemains() throws Exception {
+        User caller = createUser("demote-caller@example.com", "CallerAdmin");
+        User target = createUser("demote-target@example.com", "TargetAdmin");
+        Group group = createGroup("Demotion Gruppe", caller);
+
+        createMembership(group, caller, GroupRole.ADMIN);
+        createMembership(group, target, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(caller);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/demote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", target.getId()))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.userId").value(target.getId()))
+            .andExpect(jsonPath("$.username").value("TargetAdmin"))
+            .andExpect(jsonPath("$.role").value("MEMBER"))
+            .andExpect(jsonPath("$.joinedAt").isNotEmpty())
+            .andExpect(jsonPath("$.strichCount").value(0));
+
+        GroupMember demotedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(demotedMembership.getRole()).isEqualTo(GroupRole.MEMBER);
+    }
+
+    @Test
+    void demoteGroupMemberReturnsForbiddenWhenCallerIsNotAdmin() throws Exception {
+        User admin = createUser("demote-rights-admin@example.com", "Admin");
+        User member = createUser("demote-rights-member@example.com", "Member");
+        User target = createUser("demote-rights-target@example.com", "Target");
+        Group group = createGroup("Demotion Rechte", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+        createMembership(group, target, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/demote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", target.getId()))))
+            .andExpect(status().isForbidden())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Wart-Rechte erforderlich"));
+
+        GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(targetMembership.getRole()).isEqualTo(GroupRole.ADMIN);
+    }
+
+    @Test
+    void demoteGroupMemberReturnsNotFoundWhenTargetIsNotMember() throws Exception {
+        User admin = createUser("demote-missing-admin@example.com", "Admin");
+        User outsider = createUser("demote-missing-outsider@example.com", "Outsider");
+        Group group = createGroup("Demotion Missing", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/demote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", outsider.getId()))))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppenmitglied nicht gefunden"));
+    }
+
+    @Test
+    void demoteGroupMemberBlocksLastRemainingAdmin() throws Exception {
+        User admin = createUser("demote-last-admin@example.com", "LastAdmin");
+        Group group = createGroup("Demotion Last Admin", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/demote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", admin.getId()))))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Mindestens ein Wart muss in der Gruppe verbleiben"));
+
+        GroupMember adminMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), admin.getId()).orElseThrow();
+        assertThat(adminMembership.getRole()).isEqualTo(GroupRole.ADMIN);
+    }
+
+    @Test
+    void demoteGroupMemberIsIdempotentWhenTargetIsAlreadyMember() throws Exception {
+        User admin = createUser("demote-idempotent-admin@example.com", "Admin");
+        User target = createUser("demote-idempotent-target@example.com", "Target");
+        Group group = createGroup("Demotion Idempotent", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, target, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/roles/demote")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("targetUserId", target.getId()))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.userId").value(target.getId()))
+            .andExpect(jsonPath("$.role").value("MEMBER"));
     }
 
     @Test

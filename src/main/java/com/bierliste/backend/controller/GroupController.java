@@ -89,6 +89,16 @@ public class GroupController {
         return ResponseEntity.ok(groupService.promoteGroupMember(groupId, dto, user));
     }
 
+    @PostMapping("/{groupId}/roles/demote")
+    public ResponseEntity<GroupMemberDto> demoteGroupMember(
+        @PathVariable Long groupId,
+        @Valid @RequestBody PromoteGroupMemberDto dto,
+        @AuthenticationPrincipal User user
+    ) {
+        groupAuthorizationService.requireWart(groupId, user);
+        return ResponseEntity.ok(groupService.demoteGroupMember(groupId, dto, user));
+    }
+
     @PostMapping
     public ResponseEntity<GroupDto> createGroup(
         @Valid @RequestBody CreateGroupDto dto,

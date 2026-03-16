@@ -58,6 +58,8 @@ Hinweis: Es gibt keine Migrationen (Flyway/Liquibase). Das Schema wird via `spri
 - Wart-Prüfungen verwenden `GroupRole.ADMIN` und liefern für normale Mitglieder HTTP 403 mit `{"error":"Wart-Rechte erforderlich"}`.
 - `POST /api/v1/groups/{groupId}/roles/promote` ist idempotent und liefert immer den aktuellen Stand des Ziel-Mitglieds zurück; ist das Ziel bereits `ADMIN`, bleibt die Antwort dennoch HTTP 200.
 - Schlägt eine Promotion fehl, weil `targetUserId` kein Mitglied der Gruppe ist, liefert der Endpoint HTTP 404 mit `{"error":"Gruppenmitglied nicht gefunden"}`.
+- `POST /api/v1/groups/{groupId}/roles/demote` ist ebenfalls idempotent, solange noch mindestens ein `ADMIN` in der Gruppe verbleibt.
+- Der letzte verbleibende `ADMIN` kann nicht demoted werden; der Endpoint liefert dann HTTP 409 mit `{"error":"Mindestens ein Wart muss in der Gruppe verbleiben"}`.
 
 ## API
 Basis-Pfad: `/api/v1`  
@@ -90,6 +92,7 @@ Zeitformat für `Instant`: ISO-8601, z.B. `2026-01-25T12:34:56Z`
 | PUT | /user/settings | ja | - | UserSettingsDto {theme, lastUpdated} | UserSettingsDto |
 | POST | /user/settings/verifyPassword | ja | - | {password} | {valid} |
 | POST | /groups/{groupId}/roles/promote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |
+| POST | /groups/{groupId}/roles/demote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |
 | GET | /ping | nein | - | - | {status} |
 | GET | /email | ja | - | - | "OK" (text/plain, Test) |
 

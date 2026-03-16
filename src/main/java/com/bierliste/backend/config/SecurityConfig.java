@@ -68,6 +68,7 @@ public class SecurityConfig {
                     mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/join"),
                     mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/leave"),
                     mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/roles/promote"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/roles/demote"),
                     mvc.matcher(HttpMethod.GET, "/api/v1/user"),
                     mvc.matcher(HttpMethod.PUT, "/api/v1/user"),
                     mvc.matcher(HttpMethod.POST, "/api/v1/user/logout"),

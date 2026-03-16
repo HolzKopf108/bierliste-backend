@@ -148,6 +148,25 @@ public class GroupService {
     }
 
     @Transactional
+    public GroupMemberDto demoteGroupMember(Long groupId, PromoteGroupMemberDto dto, User user) {
+        groupAuthorizationService.requireWart(groupId, user);
+
+        GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, dto.getTargetUserId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
+
+        if (targetMembership.getRole() == GroupRole.ADMIN
+            && groupMemberRepository.countByGroup_IdAndRole(groupId, GroupRole.ADMIN) <= 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Mindestens ein Wart muss in der Gruppe verbleiben");
+        }
+
+        if (targetMembership.getRole() != GroupRole.MEMBER) {
+            targetMembership.setRole(GroupRole.MEMBER);
+        }
+
+        return toGroupMemberDto(targetMembership);
+    }
+
+    @Transactional
     public void removeUserFromAllGroups(User user) {
         Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
         List<GroupMember> memberships = groupMemberRepository.findAllByUser_Id(userId);
