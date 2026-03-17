@@ -1,31 +1,48 @@
 package com.bierliste.backend.dto;
 
 import com.bierliste.backend.model.Group;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 public class GroupSettingsDto {
 
-    @NotNull(message = "pricePerStrich ist erforderlich")
-    @DecimalMin(value = "0.01", message = "pricePerStrich muss groesser als 0 sein")
-    @Digits(integer = 8, fraction = 2, message = "pricePerStrich darf hoechstens 8 Stellen vor und 2 nach dem Komma haben")
+    private Long groupId;
+    private String name;
     private BigDecimal pricePerStrich;
-
-    @NotNull(message = "onlyWartsCanBookForOthers ist erforderlich")
     private Boolean onlyWartsCanBookForOthers;
 
     public GroupSettingsDto() {
     }
 
-    public GroupSettingsDto(BigDecimal pricePerStrich, Boolean onlyWartsCanBookForOthers) {
+    public GroupSettingsDto(Long groupId, String name, BigDecimal pricePerStrich, Boolean onlyWartsCanBookForOthers) {
+        this.groupId = groupId;
+        this.name = name;
         this.pricePerStrich = pricePerStrich;
         this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers;
     }
 
     public static GroupSettingsDto fromEntity(Group group) {
-        return new GroupSettingsDto(group.getPricePerStrich(), group.isOnlyWartsCanBookForOthers());
+        return new GroupSettingsDto(
+            group.getId(),
+            group.getName(),
+            group.getPricePerStrich(),
+            group.isOnlyWartsCanBookForOthers()
+        );
+    }
+
+    public Long getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(Long groupId) {
+        this.groupId = groupId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public BigDecimal getPricePerStrich() {

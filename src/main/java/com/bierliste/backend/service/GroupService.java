@@ -8,6 +8,7 @@ import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.GroupSettingsDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
+import com.bierliste.backend.dto.UpdateGroupSettingsDto;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
@@ -97,12 +98,13 @@ public class GroupService {
     }
 
     @Transactional
-    public GroupSettingsDto updateGroupSettings(Long groupId, GroupSettingsDto dto, User user) {
+    public GroupSettingsDto updateGroupSettings(Long groupId, UpdateGroupSettingsDto dto, User user) {
         groupAuthorizationService.requireWart(groupId, user);
 
         Group group = groupRepository.findById(groupId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
 
+        group.setName(dto.getName().trim());
         group.setPricePerStrich(dto.getPricePerStrich());
         group.setOnlyWartsCanBookForOthers(dto.getOnlyWartsCanBookForOthers());
 

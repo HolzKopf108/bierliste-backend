@@ -161,6 +161,7 @@ class GroupControllerIntegrationTest {
         mockMvc.perform(put("/api/v1/groups/1/settings")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of(
+                    "name", "Neue Einstellungen",
                     "pricePerStrich", 2.50,
                     "onlyWartsCanBookForOthers", false
                 ))))
@@ -237,6 +238,8 @@ class GroupControllerIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.groupId").value(group.getId()))
+            .andExpect(jsonPath("$.name").value("Settings Gruppe"))
             .andExpect(jsonPath("$.pricePerStrich").value(2.5))
             .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false));
     }
@@ -892,16 +895,19 @@ class GroupControllerIntegrationTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of(
+                    "name", "Neue Gruppe Konfiguration",
                     "pricePerStrich", 2.75,
                     "onlyWartsCanBookForOthers", false
                 ))))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.groupId").value(group.getId()))
+            .andExpect(jsonPath("$.name").value("Neue Gruppe Konfiguration"))
             .andExpect(jsonPath("$.pricePerStrich").value(2.75))
             .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false));
 
         Group updatedGroup = groupRepository.findById(group.getId()).orElseThrow();
-        assertThat(updatedGroup.getName()).isEqualTo("Konstante Gruppe");
+        assertThat(updatedGroup.getName()).isEqualTo("Neue Gruppe Konfiguration");
         assertThat(updatedGroup.getCreatedByUserId()).isEqualTo(admin.getId());
         assertThat(updatedGroup.getPricePerStrich()).isEqualByComparingTo("2.75");
         assertThat(updatedGroup.isOnlyWartsCanBookForOthers()).isFalse();
@@ -921,6 +927,7 @@ class GroupControllerIntegrationTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of(
+                    "name", "Verbotene Aenderung",
                     "pricePerStrich", 3.10,
                     "onlyWartsCanBookForOthers", false
                 ))))
@@ -931,6 +938,27 @@ class GroupControllerIntegrationTest {
         Group unchangedGroup = groupRepository.findById(group.getId()).orElseThrow();
         assertThat(unchangedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
         assertThat(unchangedGroup.isOnlyWartsCanBookForOthers()).isTrue();
+    }
+
+    @Test
+    void updateGroupSettingsReturnsValidationErrorWhenNameIsBlank() throws Exception {
+        User admin = createUser("group-update-settings-validation@example.com");
+        Group group = createGroup("Validierungs Gruppe", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(put("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "name", " ",
+                    "pricePerStrich", 1.50,
+                    "onlyWartsCanBookForOthers", true
+                ))))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.name").exists());
     }
 
     private String createAccessTokenForUser(String email) {

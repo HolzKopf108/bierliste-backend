@@ -9,6 +9,7 @@ import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.GroupSettingsDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
+import com.bierliste.backend.dto.UpdateGroupSettingsDto;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.service.GroupAuthorizationService;
 import com.bierliste.backend.service.GroupService;
@@ -72,7 +73,7 @@ public class GroupController {
     @PutMapping("/{groupId}/settings")
     public ResponseEntity<GroupSettingsDto> updateGroupSettings(
         @PathVariable Long groupId,
-        @Valid @RequestBody GroupSettingsDto dto,
+        @Valid @RequestBody UpdateGroupSettingsDto dto,
         @AuthenticationPrincipal User user
     ) {
         groupAuthorizationService.requireWart(groupId, user);
