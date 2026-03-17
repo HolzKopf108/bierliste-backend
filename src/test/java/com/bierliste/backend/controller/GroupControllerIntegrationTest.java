@@ -244,6 +244,23 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void getGroupSettingsReturnsNotFoundForNonMember() throws Exception {
+        User admin = createUser("group-settings-non-member-admin@example.com");
+        User nonMember = createUser("group-settings-non-member@example.com");
+        Group group = createGroup("Private Settings Gruppe", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(nonMember);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
     void getGroupByIdReturnsNotFoundForNonMember() throws Exception {
         User member = createUser("group-member-only@example.com");
         User nonMember = createUser("group-non-member@example.com");
@@ -961,6 +978,49 @@ class GroupControllerIntegrationTest {
         Group unchangedGroup = groupRepository.findById(group.getId()).orElseThrow();
         assertThat(unchangedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
         assertThat(unchangedGroup.isOnlyWartsCanBookForOthers()).isTrue();
+    }
+
+    @Test
+    void updateGroupSettingsReturnsNotFoundForNonMember() throws Exception {
+        User admin = createUser("group-update-settings-non-member-admin@example.com");
+        User nonMember = createUser("group-update-settings-non-member@example.com");
+        Group group = createGroup("Nichtmitglied Settings", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(nonMember);
+
+        mockMvc.perform(put("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "name", "Verdeckte Aenderung",
+                    "pricePerStrich", 4.20,
+                    "onlyWartsCanBookForOthers", false
+                ))))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void updateGroupSettingsReturnsValidationErrorWhenPricePerStrichIsNegative() throws Exception {
+        User admin = createUser("group-update-settings-negative-price@example.com");
+        Group group = createGroup("Negative Preis Gruppe", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(put("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "name", "Negative Preis Gruppe",
+                    "pricePerStrich", -0.01,
+                    "onlyWartsCanBookForOthers", true
+                ))))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.pricePerStrich").exists());
     }
 
     @Test
