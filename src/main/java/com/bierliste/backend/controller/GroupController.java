@@ -6,10 +6,10 @@ import com.bierliste.backend.dto.CounterResponseDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupRoleDto;
-import com.bierliste.backend.dto.GroupSettingsDto;
+import com.bierliste.backend.dto.GroupSettingsResponseDto;
+import com.bierliste.backend.dto.GroupSettingsUpdateDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
-import com.bierliste.backend.dto.UpdateGroupSettingsDto;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.service.GroupAuthorizationService;
 import com.bierliste.backend.service.GroupService;
@@ -47,7 +47,7 @@ public class GroupController {
     }
 
     @GetMapping("/{groupId}/settings")
-    public ResponseEntity<GroupSettingsDto> getGroupSettings(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+    public ResponseEntity<GroupSettingsResponseDto> getGroupSettings(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         groupAuthorizationService.requireMember(groupId, user);
         return ResponseEntity.ok(groupService.getGroupSettingsForUser(groupId, user));
     }
@@ -71,9 +71,9 @@ public class GroupController {
     }
 
     @PutMapping("/{groupId}/settings")
-    public ResponseEntity<GroupSettingsDto> updateGroupSettings(
+    public ResponseEntity<GroupSettingsResponseDto> updateGroupSettings(
         @PathVariable Long groupId,
-        @Valid @RequestBody UpdateGroupSettingsDto dto,
+        @Valid @RequestBody GroupSettingsUpdateDto dto,
         @AuthenticationPrincipal User user
     ) {
         groupAuthorizationService.requireWart(groupId, user);

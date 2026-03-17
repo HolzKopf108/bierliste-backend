@@ -5,10 +5,10 @@ import com.bierliste.backend.dto.CounterIncrementDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupRoleDto;
-import com.bierliste.backend.dto.GroupSettingsDto;
+import com.bierliste.backend.dto.GroupSettingsResponseDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
-import com.bierliste.backend.dto.UpdateGroupSettingsDto;
+import com.bierliste.backend.dto.GroupSettingsUpdateDto;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
@@ -76,9 +76,9 @@ public class GroupService {
         return toGroupDto(group);
     }
 
-    public GroupSettingsDto getGroupSettingsForUser(Long groupId, User user) {
+    public GroupSettingsResponseDto getGroupSettingsForUser(Long groupId, User user) {
         Group group = groupAuthorizationService.requireMemberGroup(groupId, user);
-        return GroupSettingsDto.fromEntity(group);
+        return GroupSettingsResponseDto.fromEntity(group);
     }
 
     public List<GroupMemberDto> getGroupMembersForUser(Long groupId, User user) {
@@ -98,7 +98,7 @@ public class GroupService {
     }
 
     @Transactional
-    public GroupSettingsDto updateGroupSettings(Long groupId, UpdateGroupSettingsDto dto, User user) {
+    public GroupSettingsResponseDto updateGroupSettings(Long groupId, GroupSettingsUpdateDto dto, User user) {
         groupAuthorizationService.requireWart(groupId, user);
 
         Group group = groupRepository.findById(groupId)
@@ -108,7 +108,7 @@ public class GroupService {
         group.setPricePerStrich(dto.getPricePerStrich());
         group.setOnlyWartsCanBookForOthers(dto.getOnlyWartsCanBookForOthers());
 
-        return GroupSettingsDto.fromEntity(group);
+        return GroupSettingsResponseDto.fromEntity(group);
     }
 
     @Transactional

@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
-public class UpdateGroupSettingsDto {
+public class GroupSettingsUpdateDto {
 
     @NotBlank(message = "Gruppenname ist erforderlich")
     @Size(min = 3, max = 120, message = "Gruppenname muss zwischen 3 und 120 Zeichen lang sein")

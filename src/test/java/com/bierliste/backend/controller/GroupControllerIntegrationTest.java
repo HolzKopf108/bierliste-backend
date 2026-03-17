@@ -238,7 +238,6 @@ class GroupControllerIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.groupId").value(group.getId()))
             .andExpect(jsonPath("$.name").value("Settings Gruppe"))
             .andExpect(jsonPath("$.pricePerStrich").value(2.5))
             .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false));
@@ -901,7 +900,6 @@ class GroupControllerIntegrationTest {
                 ))))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.groupId").value(group.getId()))
             .andExpect(jsonPath("$.name").value("Neue Gruppe Konfiguration"))
             .andExpect(jsonPath("$.pricePerStrich").value(2.75))
             .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false));

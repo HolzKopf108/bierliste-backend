@@ -3,38 +3,27 @@ package com.bierliste.backend.dto;
 import com.bierliste.backend.model.Group;
 import java.math.BigDecimal;
 
-public class GroupSettingsDto {
+public class GroupSettingsResponseDto {
 
-    private Long groupId;
     private String name;
     private BigDecimal pricePerStrich;
     private Boolean onlyWartsCanBookForOthers;
 
-    public GroupSettingsDto() {
+    public GroupSettingsResponseDto() {
     }
 
-    public GroupSettingsDto(Long groupId, String name, BigDecimal pricePerStrich, Boolean onlyWartsCanBookForOthers) {
-        this.groupId = groupId;
+    public GroupSettingsResponseDto(String name, BigDecimal pricePerStrich, Boolean onlyWartsCanBookForOthers) {
         this.name = name;
         this.pricePerStrich = pricePerStrich;
         this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers;
     }
 
-    public static GroupSettingsDto fromEntity(Group group) {
-        return new GroupSettingsDto(
-            group.getId(),
+    public static GroupSettingsResponseDto fromEntity(Group group) {
+        return new GroupSettingsResponseDto(
             group.getName(),
             group.getPricePerStrich(),
             group.isOnlyWartsCanBookForOthers()
         );
-    }
-
-    public Long getGroupId() {
-        return groupId;
-    }
-
-    public void setGroupId(Long groupId) {
-        this.groupId = groupId;
     }
 
     public String getName() {
