@@ -3,6 +3,7 @@ package com.bierliste.backend.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,6 +17,7 @@ import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
 import com.bierliste.backend.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,6 +73,14 @@ class GroupControllerIntegrationTest {
     @Test
     void getGroupByIdReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
         mockMvc.perform(get("/api/v1/groups/1"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
+    void getGroupSettingsReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(get("/api/v1/groups/1/settings"))
             .andExpect(status().isUnauthorized())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
@@ -147,6 +157,19 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void updateGroupSettingsReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(put("/api/v1/groups/1/settings")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "pricePerStrich", 2.50,
+                    "onlyWartsCanBookForOthers", false
+                ))))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
     void getGroupsReturnsOnlyGroupsForAuthenticatedUser() throws Exception {
         User user = createUser("groups-user@example.com");
         User secondUser = createUser("groups-second@example.com");
@@ -191,7 +214,31 @@ class GroupControllerIntegrationTest {
             .andExpect(jsonPath("$.id").value(group.getId()))
             .andExpect(jsonPath("$.name").value("Details Gruppe"))
             .andExpect(jsonPath("$.createdByUserId").value(creator.getId()))
-            .andExpect(jsonPath("$.createdAt").isNotEmpty());
+            .andExpect(jsonPath("$.createdAt").isNotEmpty())
+            .andExpect(jsonPath("$.pricePerStrich").value(1))
+            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(true));
+    }
+
+    @Test
+    void getGroupSettingsReturnsPersistedSettingsForMember() throws Exception {
+        User admin = createUser("group-settings-admin@example.com");
+        User member = createUser("group-settings-member@example.com");
+        Group group = createGroup("Settings Gruppe", admin);
+        group.setPricePerStrich(new BigDecimal("2.50"));
+        group.setOnlyWartsCanBookForOthers(false);
+        groupRepository.save(group);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.pricePerStrich").value(2.5))
+            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false));
     }
 
     @Test
@@ -819,13 +866,71 @@ class GroupControllerIntegrationTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.id").isNumber())
             .andExpect(jsonPath("$.name").value("Neue Gruppe"))
-            .andExpect(jsonPath("$.createdByUserId").value(creator.getId()));
+            .andExpect(jsonPath("$.createdByUserId").value(creator.getId()))
+            .andExpect(jsonPath("$.pricePerStrich").value(1))
+            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(true));
 
         Long groupId = groupRepository.findAll().getFirst().getId();
+        Group persistedGroup = groupRepository.findById(groupId).orElseThrow();
 
         var membership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, creator.getId()).orElseThrow();
+        assertThat(persistedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
+        assertThat(persistedGroup.isOnlyWartsCanBookForOthers()).isTrue();
         assertThat(membership.getRole()).isEqualTo(GroupRole.ADMIN);
         assertThat(membership.getStrichCount()).isZero();
+    }
+
+    @Test
+    void updateGroupSettingsUpdatesOnlySettingsForAdmin() throws Exception {
+        User admin = createUser("group-update-settings-admin@example.com");
+        Group group = createGroup("Konstante Gruppe", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(put("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "pricePerStrich", 2.75,
+                    "onlyWartsCanBookForOthers", false
+                ))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.pricePerStrich").value(2.75))
+            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false));
+
+        Group updatedGroup = groupRepository.findById(group.getId()).orElseThrow();
+        assertThat(updatedGroup.getName()).isEqualTo("Konstante Gruppe");
+        assertThat(updatedGroup.getCreatedByUserId()).isEqualTo(admin.getId());
+        assertThat(updatedGroup.getPricePerStrich()).isEqualByComparingTo("2.75");
+        assertThat(updatedGroup.isOnlyWartsCanBookForOthers()).isFalse();
+    }
+
+    @Test
+    void updateGroupSettingsReturnsForbiddenWhenCallerIsNotAdmin() throws Exception {
+        User admin = createUser("group-update-settings-owner@example.com");
+        User member = createUser("group-update-settings-member@example.com");
+        Group group = createGroup("Geschuetzte Settings", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(put("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "pricePerStrich", 3.10,
+                    "onlyWartsCanBookForOthers", false
+                ))))
+            .andExpect(status().isForbidden())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Wart-Rechte erforderlich"));
+
+        Group unchangedGroup = groupRepository.findById(group.getId()).orElseThrow();
+        assertThat(unchangedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
+        assertThat(unchangedGroup.isOnlyWartsCanBookForOthers()).isTrue();
     }
 
     private String createAccessTokenForUser(String email) {

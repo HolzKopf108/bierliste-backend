@@ -6,6 +6,7 @@ import com.bierliste.backend.dto.CounterResponseDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupRoleDto;
+import com.bierliste.backend.dto.GroupSettingsDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.User;
@@ -44,6 +45,12 @@ public class GroupController {
         return ResponseEntity.ok(groupService.getGroupForUser(groupId, user));
     }
 
+    @GetMapping("/{groupId}/settings")
+    public ResponseEntity<GroupSettingsDto> getGroupSettings(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        groupAuthorizationService.requireMember(groupId, user);
+        return ResponseEntity.ok(groupService.getGroupSettingsForUser(groupId, user));
+    }
+
     @GetMapping("/{groupId}/members")
     public ResponseEntity<List<GroupMemberDto>> getGroupMembers(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         groupAuthorizationService.requireMember(groupId, user);
@@ -60,6 +67,16 @@ public class GroupController {
     public ResponseEntity<GroupRoleDto> getOwnRole(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         groupAuthorizationService.requireMember(groupId, user);
         return ResponseEntity.ok(groupService.getOwnRoleForGroup(groupId, user));
+    }
+
+    @PutMapping("/{groupId}/settings")
+    public ResponseEntity<GroupSettingsDto> updateGroupSettings(
+        @PathVariable Long groupId,
+        @Valid @RequestBody GroupSettingsDto dto,
+        @AuthenticationPrincipal User user
+    ) {
+        groupAuthorizationService.requireWart(groupId, user);
+        return ResponseEntity.ok(groupService.updateGroupSettings(groupId, dto, user));
     }
 
     @PostMapping("/{groupId}/me/counter/increment")

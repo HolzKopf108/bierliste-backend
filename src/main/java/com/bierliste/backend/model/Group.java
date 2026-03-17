@@ -1,6 +1,10 @@
 package com.bierliste.backend.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
@@ -14,6 +18,8 @@ import java.util.Set;
 )
 public class Group {
 
+    public static final BigDecimal DEFAULT_PRICE_PER_STRICH = new BigDecimal("1.00");
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -23,6 +29,15 @@ public class Group {
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
+
+    @NotNull
+    @DecimalMin(value = "0.01")
+    @Digits(integer = 8, fraction = 2)
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal pricePerStrich = DEFAULT_PRICE_PER_STRICH;
+
+    @Column(nullable = false)
+    private boolean onlyWartsCanBookForOthers = true;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by_user_id", nullable = false, updatable = false)
@@ -35,6 +50,10 @@ public class Group {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public Instant getCreatedAt() { return createdAt; }
+    public BigDecimal getPricePerStrich() { return pricePerStrich; }
+    public void setPricePerStrich(BigDecimal pricePerStrich) { this.pricePerStrich = pricePerStrich; }
+    public boolean isOnlyWartsCanBookForOthers() { return onlyWartsCanBookForOthers; }
+    public void setOnlyWartsCanBookForOthers(boolean onlyWartsCanBookForOthers) { this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers; }
     public Long getCreatedByUserId() { return createdByUser != null ? createdByUser.getId() : null; }
     public User getCreatedByUser() { return createdByUser; }
     public void setCreatedByUser(User createdByUser) { this.createdByUser = createdByUser; }

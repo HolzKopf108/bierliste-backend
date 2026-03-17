@@ -5,6 +5,7 @@ import com.bierliste.backend.dto.CounterIncrementDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupRoleDto;
+import com.bierliste.backend.dto.GroupSettingsDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.Group;
@@ -57,12 +58,7 @@ public class GroupService {
 
         groupMemberRepository.save(membership);
 
-        return new GroupDto(
-            savedGroup.getId(),
-            savedGroup.getName(),
-            savedGroup.getCreatedAt(),
-            savedGroup.getCreatedByUserId()
-        );
+        return toGroupDto(savedGroup);
     }
 
     public List<GroupSummaryDto> getGroupsForUser(User user) {
@@ -76,13 +72,12 @@ public class GroupService {
 
     public GroupDto getGroupForUser(Long groupId, User user) {
         Group group = groupAuthorizationService.requireMemberGroup(groupId, user);
+        return toGroupDto(group);
+    }
 
-        return new GroupDto(
-            group.getId(),
-            group.getName(),
-            group.getCreatedAt(),
-            group.getCreatedByUserId()
-        );
+    public GroupSettingsDto getGroupSettingsForUser(Long groupId, User user) {
+        Group group = groupAuthorizationService.requireMemberGroup(groupId, user);
+        return GroupSettingsDto.fromEntity(group);
     }
 
     public List<GroupMemberDto> getGroupMembersForUser(Long groupId, User user) {
@@ -99,6 +94,19 @@ public class GroupService {
     public GroupRoleDto getOwnRoleForGroup(Long groupId, User user) {
         GroupMember membership = groupAuthorizationService.requireMemberEntity(groupId, user);
         return new GroupRoleDto(membership.getRole());
+    }
+
+    @Transactional
+    public GroupSettingsDto updateGroupSettings(Long groupId, GroupSettingsDto dto, User user) {
+        groupAuthorizationService.requireWart(groupId, user);
+
+        Group group = groupRepository.findById(groupId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
+
+        group.setPricePerStrich(dto.getPricePerStrich());
+        group.setOnlyWartsCanBookForOthers(dto.getOnlyWartsCanBookForOthers());
+
+        return GroupSettingsDto.fromEntity(group);
     }
 
     @Transactional
@@ -219,6 +227,17 @@ public class GroupService {
             membership.getJoinedAt(),
             membership.getRole(),
             membership.getStrichCount()
+        );
+    }
+
+    private GroupDto toGroupDto(Group group) {
+        return new GroupDto(
+            group.getId(),
+            group.getName(),
+            group.getCreatedAt(),
+            group.getCreatedByUserId(),
+            group.getPricePerStrich(),
+            group.isOnlyWartsCanBookForOthers()
         );
     }
 }

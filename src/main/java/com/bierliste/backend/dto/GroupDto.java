@@ -1,6 +1,7 @@
 package com.bierliste.backend.dto;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 
 public class GroupDto {
 
@@ -8,15 +9,19 @@ public class GroupDto {
     private String name;
     private Instant createdAt;
     private Long createdByUserId;
+    private BigDecimal pricePerStrich;
+    private boolean onlyWartsCanBookForOthers;
 
     public GroupDto() {
     }
 
-    public GroupDto(Long id, String name, Instant createdAt, Long createdByUserId) {
+    public GroupDto(Long id, String name, Instant createdAt, Long createdByUserId, BigDecimal pricePerStrich, boolean onlyWartsCanBookForOthers) {
         this.id = id;
         this.name = name;
         this.createdAt = createdAt;
         this.createdByUserId = createdByUserId;
+        this.pricePerStrich = pricePerStrich;
+        this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers;
     }
 
     public Long getId() {
@@ -39,6 +44,14 @@ public class GroupDto {
         return createdByUserId;
     }
 
+    public BigDecimal getPricePerStrich() {
+        return pricePerStrich;
+    }
+
+    public boolean isOnlyWartsCanBookForOthers() {
+        return onlyWartsCanBookForOthers;
+    }
+
     public void setName(String name) {
         this.name = name;
     }
@@ -49,5 +62,13 @@ public class GroupDto {
 
     public void setCreatedByUserId(Long createdByUserId) {
         this.createdByUserId = createdByUserId;
+    }
+
+    public void setPricePerStrich(BigDecimal pricePerStrich) {
+        this.pricePerStrich = pricePerStrich;
+    }
+
+    public void setOnlyWartsCanBookForOthers(boolean onlyWartsCanBookForOthers) {
+        this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers;
     }
 }

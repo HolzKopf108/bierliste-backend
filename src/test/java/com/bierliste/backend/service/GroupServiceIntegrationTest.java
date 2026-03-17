@@ -18,6 +18,7 @@ import com.bierliste.backend.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.validation.ConstraintViolationException;
+import java.math.BigDecimal;
 import java.util.List;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -68,6 +69,8 @@ class GroupServiceIntegrationTest {
         assertThat(result.getId()).isNotNull();
         assertThat(result.getName()).isEqualTo("Neue Gruppe");
         assertThat(result.getCreatedByUserId()).isEqualTo(creator.getId());
+        assertThat(result.getPricePerStrich()).isEqualByComparingTo("1.00");
+        assertThat(result.isOnlyWartsCanBookForOthers()).isTrue();
 
         Group persistedGroup = groupRepository.findById(result.getId()).orElseThrow();
         GroupMember persistedMember = groupMemberRepository
@@ -75,10 +78,25 @@ class GroupServiceIntegrationTest {
             .orElseThrow();
 
         assertThat(persistedGroup.getName()).isEqualTo("Neue Gruppe");
+        assertThat(persistedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
+        assertThat(persistedGroup.isOnlyWartsCanBookForOthers()).isTrue();
         assertThat(persistedMember.getRole()).isEqualTo(GroupRole.ADMIN);
         assertThat(persistedMember.getGroup().getId()).isEqualTo(persistedGroup.getId());
         assertThat(persistedMember.getUser().getId()).isEqualTo(creator.getId());
         assertThat(persistedMember.getStrichCount()).isZero();
+    }
+
+    @Test
+    void groupRejectsInvalidPricePerStrich() {
+        User user = createUser("invalid-price@example.com", "invalid-price");
+
+        Group invalidGroup = new Group();
+        invalidGroup.setName("Ungueltige Gruppe");
+        invalidGroup.setCreatedByUser(user);
+        invalidGroup.setPricePerStrich(BigDecimal.ZERO);
+
+        assertThatThrownBy(() -> groupRepository.saveAndFlush(invalidGroup))
+            .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
