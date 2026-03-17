@@ -31,7 +31,7 @@ public class Group {
     private Instant createdAt = Instant.now();
 
     @NotNull
-    @DecimalMin(value = "0.01")
+    @DecimalMin(value = "0.00")
     @Digits(integer = 8, fraction = 2)
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal pricePerStrich = DEFAULT_PRICE_PER_STRICH;

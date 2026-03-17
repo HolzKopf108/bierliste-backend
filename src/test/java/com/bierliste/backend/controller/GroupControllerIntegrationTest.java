@@ -914,6 +914,31 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void updateGroupSettingsAllowsZeroPricePerStrich() throws Exception {
+        User admin = createUser("group-update-settings-zero@example.com");
+        Group group = createGroup("Nullpreis Gruppe", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(put("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "name", "Nullpreis Gruppe",
+                    "pricePerStrich", 0.00,
+                    "onlyWartsCanBookForOthers", true
+                ))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.pricePerStrich").value(0))
+            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(true));
+
+        Group updatedGroup = groupRepository.findById(group.getId()).orElseThrow();
+        assertThat(updatedGroup.getPricePerStrich()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
     void updateGroupSettingsReturnsForbiddenWhenCallerIsNotAdmin() throws Exception {
         User admin = createUser("group-update-settings-owner@example.com");
         User member = createUser("group-update-settings-member@example.com");

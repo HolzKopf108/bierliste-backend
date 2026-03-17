@@ -87,13 +87,13 @@ class GroupServiceIntegrationTest {
     }
 
     @Test
-    void groupRejectsInvalidPricePerStrich() {
+    void groupRejectsNegativePricePerStrich() {
         User user = createUser("invalid-price@example.com", "invalid-price");
 
         Group invalidGroup = new Group();
         invalidGroup.setName("Ungueltige Gruppe");
         invalidGroup.setCreatedByUser(user);
-        invalidGroup.setPricePerStrich(BigDecimal.ZERO);
+        invalidGroup.setPricePerStrich(new BigDecimal("-0.01"));
 
         assertThatThrownBy(() -> groupRepository.saveAndFlush(invalidGroup))
             .isInstanceOf(ConstraintViolationException.class);

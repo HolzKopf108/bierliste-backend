@@ -14,7 +14,7 @@ public class UpdateGroupSettingsDto {
     private String name;
 
     @NotNull(message = "pricePerStrich ist erforderlich")
-    @DecimalMin(value = "0.01", message = "pricePerStrich muss groesser als 0 sein")
+    @DecimalMin(value = "0.00", message = "pricePerStrich darf nicht negativ sein")
     @Digits(integer = 8, fraction = 2, message = "pricePerStrich darf hoechstens 8 Stellen vor und 2 nach dem Komma haben")
     private BigDecimal pricePerStrich;
 

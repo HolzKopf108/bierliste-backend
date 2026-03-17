@@ -8,7 +8,7 @@ ALTER TABLE IF EXISTS groups ALTER COLUMN price_per_strich SET DEFAULT 1.00;
 ALTER TABLE IF EXISTS groups ALTER COLUMN price_per_strich SET NOT NULL;
 ALTER TABLE IF EXISTS groups DROP CONSTRAINT IF EXISTS ck_groups_price_per_strich;
 ALTER TABLE IF EXISTS groups
-    ADD CONSTRAINT ck_groups_price_per_strich CHECK (price_per_strich > 0);
+    ADD CONSTRAINT ck_groups_price_per_strich CHECK (price_per_strich >= 0);
 
 ALTER TABLE IF EXISTS groups ADD COLUMN IF NOT EXISTS only_warts_can_book_for_others BOOLEAN;
 UPDATE groups
