@@ -124,6 +124,19 @@ public class GroupService {
     }
 
     @Transactional
+    public int incrementMemberCounterForGroup(Long groupId, Long targetUserId, CounterIncrementDto dto, User user) {
+        GroupMember actorMembership = groupAuthorizationService.requireMemberEntity(groupId, user);
+        GroupMember targetMembership = requireTargetMembership(groupId, targetUserId);
+
+        requireCounterIncrementPermission(actorMembership, targetMembership);
+
+        groupMemberRepository.incrementStrichCount(groupId, targetUserId, dto.getAmount());
+
+        return groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(groupId, targetUserId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
+    }
+
+    @Transactional
     public void joinGroup(Long groupId, User user) {
         Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
 
@@ -211,6 +224,20 @@ public class GroupService {
             GroupMember newAdmin = groupMemberRepository.findFirstByGroup_IdOrderByJoinedAtAscIdAsc(groupId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Admin konnte nicht neu zugewiesen werden"));
             newAdmin.setRole(GroupRole.ADMIN);
+        }
+    }
+
+    private void requireCounterIncrementPermission(GroupMember actorMembership, GroupMember targetMembership) {
+        if (actorMembership.getUser().getId().equals(targetMembership.getUser().getId())) {
+            return;
+        }
+
+        if (!actorMembership.getGroup().isOnlyWartsCanBookForOthers()) {
+            return;
+        }
+
+        if (actorMembership.getRole() != GroupRole.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Wart-Rechte erforderlich");
         }
     }
 

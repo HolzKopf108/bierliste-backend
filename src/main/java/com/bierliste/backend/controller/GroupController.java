@@ -99,6 +99,17 @@ public class GroupController {
         return ResponseEntity.ok(new CounterResponseDto(groupService.incrementOwnCounterForGroup(groupId, dto, user)));
     }
 
+    @PostMapping("/{groupId}/members/{targetUserId}/counter/increment")
+    public ResponseEntity<CounterResponseDto> incrementMemberCounter(
+        @PathVariable Long groupId,
+        @PathVariable Long targetUserId,
+        @Valid @RequestBody CounterIncrementDto dto,
+        @AuthenticationPrincipal User user
+    ) {
+        groupAuthorizationService.requireMember(groupId, user);
+        return ResponseEntity.ok(new CounterResponseDto(groupService.incrementMemberCounterForGroup(groupId, targetUserId, dto, user)));
+    }
+
     @PostMapping("/{groupId}/join")
     public ResponseEntity<Map<String, String>> joinGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         groupAuthorizationService.requireAuthenticatedUserId(user);
