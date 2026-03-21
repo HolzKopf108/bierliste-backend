@@ -26,3 +26,40 @@ ALTER TABLE IF EXISTS group_members ALTER COLUMN role SET NOT NULL;
 ALTER TABLE IF EXISTS group_members DROP CONSTRAINT IF EXISTS ck_group_members_role;
 ALTER TABLE IF EXISTS group_members
     ADD CONSTRAINT ck_group_members_role CHECK (role IN ('MEMBER', 'ADMIN'));
+
+CREATE TABLE IF NOT EXISTS settlements (
+    id BIGSERIAL PRIMARY KEY,
+    group_id BIGINT NOT NULL,
+    target_user_id BIGINT NOT NULL,
+    actor_user_id BIGINT NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    money_amount DECIMAL(10, 2),
+    striche_amount INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    note VARCHAR(255)
+);
+
+CREATE INDEX IF NOT EXISTS idx_settlements_group ON settlements(group_id);
+CREATE INDEX IF NOT EXISTS idx_settlements_target_user ON settlements(target_user_id);
+CREATE INDEX IF NOT EXISTS idx_settlements_actor_user ON settlements(actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_settlements_created_at ON settlements(created_at);
+
+ALTER TABLE IF EXISTS settlements DROP CONSTRAINT IF EXISTS ck_settlements_type;
+ALTER TABLE IF EXISTS settlements
+    ADD CONSTRAINT ck_settlements_type CHECK (type IN ('MONEY', 'STRICHE'));
+
+ALTER TABLE IF EXISTS settlements DROP CONSTRAINT IF EXISTS ck_settlements_money_amount;
+ALTER TABLE IF EXISTS settlements
+    ADD CONSTRAINT ck_settlements_money_amount CHECK (money_amount IS NULL OR money_amount > 0);
+
+ALTER TABLE IF EXISTS settlements DROP CONSTRAINT IF EXISTS ck_settlements_striche_amount;
+ALTER TABLE IF EXISTS settlements
+    ADD CONSTRAINT ck_settlements_striche_amount CHECK (striche_amount IS NULL OR striche_amount >= 1);
+
+ALTER TABLE IF EXISTS settlements DROP CONSTRAINT IF EXISTS ck_settlements_amount_combination;
+ALTER TABLE IF EXISTS settlements
+    ADD CONSTRAINT ck_settlements_amount_combination CHECK (
+        (type = 'MONEY' AND money_amount IS NOT NULL AND striche_amount IS NULL)
+        OR
+        (type = 'STRICHE' AND striche_amount IS NOT NULL AND money_amount IS NULL)
+    );

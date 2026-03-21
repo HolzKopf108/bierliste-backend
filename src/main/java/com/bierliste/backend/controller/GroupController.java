@@ -9,10 +9,13 @@ import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.GroupSettingsResponseDto;
 import com.bierliste.backend.dto.GroupSettingsUpdateDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
+import com.bierliste.backend.dto.MoneySettlementCreateDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
+import com.bierliste.backend.dto.StricheSettlementCreateDto;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.service.GroupAuthorizationService;
 import com.bierliste.backend.service.GroupService;
+import com.bierliste.backend.service.SettlementService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,10 +31,16 @@ public class GroupController {
 
     private final GroupService groupService;
     private final GroupAuthorizationService groupAuthorizationService;
+    private final SettlementService settlementService;
 
-    public GroupController(GroupService groupService, GroupAuthorizationService groupAuthorizationService) {
+    public GroupController(
+        GroupService groupService,
+        GroupAuthorizationService groupAuthorizationService,
+        SettlementService settlementService
+    ) {
         this.groupService = groupService;
         this.groupAuthorizationService = groupAuthorizationService;
+        this.settlementService = settlementService;
     }
 
     @GetMapping
@@ -122,6 +131,28 @@ public class GroupController {
     ) {
         groupAuthorizationService.requireWart(groupId, user);
         return ResponseEntity.ok(groupService.demoteGroupMember(groupId, dto, user));
+    }
+
+    @PostMapping("/{groupId}/members/{targetUserId}/settlements/money")
+    public ResponseEntity<GroupMemberDto> createMoneySettlement(
+        @PathVariable Long groupId,
+        @PathVariable Long targetUserId,
+        @Valid @RequestBody MoneySettlementCreateDto dto,
+        @AuthenticationPrincipal User user
+    ) {
+        groupAuthorizationService.requireWart(groupId, user);
+        return ResponseEntity.ok(settlementService.createMoneySettlement(groupId, targetUserId, dto, user));
+    }
+
+    @PostMapping("/{groupId}/members/{targetUserId}/settlements/striche")
+    public ResponseEntity<GroupMemberDto> createStricheSettlement(
+        @PathVariable Long groupId,
+        @PathVariable Long targetUserId,
+        @Valid @RequestBody StricheSettlementCreateDto dto,
+        @AuthenticationPrincipal User user
+    ) {
+        groupAuthorizationService.requireWart(groupId, user);
+        return ResponseEntity.ok(settlementService.createStricheSettlement(groupId, targetUserId, dto, user));
     }
 
     @PostMapping
