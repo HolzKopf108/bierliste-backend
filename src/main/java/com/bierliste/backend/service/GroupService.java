@@ -22,7 +22,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class GroupService {
@@ -31,15 +34,18 @@ public class GroupService {
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
     private final GroupAuthorizationService groupAuthorizationService;
+    private final ActivityService activityService;
 
     public GroupService(GroupRepository groupRepository,
                         GroupMemberRepository groupMemberRepository,
                         UserRepository userRepository,
-                        GroupAuthorizationService groupAuthorizationService) {
+                        GroupAuthorizationService groupAuthorizationService,
+                        ActivityService activityService) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
         this.groupAuthorizationService = groupAuthorizationService;
+        this.activityService = activityService;
     }
 
     @Transactional
@@ -104,10 +110,39 @@ public class GroupService {
         Group group = groupRepository.findById(groupId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
 
-        group.setName(dto.getName().trim());
-        group.setPricePerStrich(dto.getPricePerStrich());
-        group.setOnlyWartsCanBookForOthers(dto.getOnlyWartsCanBookForOthers());
-        group.setAllowArbitraryMoneySettlements(dto.getAllowArbitraryMoneySettlements());
+        String newName = dto.getName().trim();
+        BigDecimal newPricePerStrich = dto.getPricePerStrich();
+        boolean newOnlyWartsCanBookForOthers = dto.getOnlyWartsCanBookForOthers();
+        boolean newAllowArbitraryMoneySettlements = dto.getAllowArbitraryMoneySettlements();
+
+        Map<String, Object> oldValues = new LinkedHashMap<>();
+        oldValues.put("name", group.getName());
+        oldValues.put("pricePerStrich", group.getPricePerStrich());
+        oldValues.put("onlyWartsCanBookForOthers", group.isOnlyWartsCanBookForOthers());
+        oldValues.put("allowArbitraryMoneySettlements", group.isAllowArbitraryMoneySettlements());
+
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        newValues.put("name", newName);
+        newValues.put("pricePerStrich", newPricePerStrich);
+        newValues.put("onlyWartsCanBookForOthers", newOnlyWartsCanBookForOthers);
+        newValues.put("allowArbitraryMoneySettlements", newAllowArbitraryMoneySettlements);
+
+        List<String> changedFields = activityService.determineChangedFields(oldValues, newValues);
+
+        group.setName(newName);
+        group.setPricePerStrich(newPricePerStrich);
+        group.setOnlyWartsCanBookForOthers(newOnlyWartsCanBookForOthers);
+        group.setAllowArbitraryMoneySettlements(newAllowArbitraryMoneySettlements);
+
+        if (!changedFields.isEmpty()) {
+            activityService.logGroupSettingsChanged(
+                groupId,
+                user,
+                changedFields,
+                oldValues,
+                newValues
+            );
+        }
 
         return GroupSettingsResponseDto.fromEntity(group);
     }
@@ -119,21 +154,38 @@ public class GroupService {
 
         groupMemberRepository.incrementStrichCount(groupId, userId, dto.getAmount());
 
-        return groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(groupId, userId)
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(groupId, userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
+
+        activityService.logStrichIncremented(groupId, user, user, dto.getAmount());
+
+        return updatedCount;
     }
 
     @Transactional
     public int incrementMemberCounterForGroup(Long groupId, Long targetUserId, CounterIncrementDto dto, User user) {
         GroupMember actorMembership = groupAuthorizationService.requireMemberEntity(groupId, user);
         GroupMember targetMembership = requireTargetMembership(groupId, targetUserId);
+        User actorUser = actorMembership.getUser();
+        User targetUser = targetMembership.getUser();
+        actorUser.getUsername();
+        targetUser.getUsername();
 
         requireCounterIncrementPermission(actorMembership, targetMembership);
 
         groupMemberRepository.incrementStrichCount(groupId, targetUserId, dto.getAmount());
 
-        return groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(groupId, targetUserId)
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(groupId, targetUserId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
+
+        activityService.logStrichIncremented(
+            groupId,
+            actorUser,
+            targetUser,
+            dto.getAmount()
+        );
+
+        return updatedCount;
     }
 
     @Transactional
@@ -154,6 +206,7 @@ public class GroupService {
 
         try {
             groupMemberRepository.save(membership);
+            activityService.logUserJoinedGroup(groupId, user);
         } catch (DataIntegrityViolationException ex) {
             if (!groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, userId)) {
                 throw ex;
@@ -164,6 +217,7 @@ public class GroupService {
     @Transactional
     public void leaveGroup(Long groupId, User user) {
         GroupMember membership = groupAuthorizationService.requireMemberEntity(groupId, user);
+        activityService.logUserLeftGroup(groupId, membership.getUser());
         removeMembershipAndCleanupGroup(membership);
     }
 
@@ -172,9 +226,17 @@ public class GroupService {
         groupAuthorizationService.requireWart(groupId, user);
 
         GroupMember targetMembership = requireTargetMembership(groupId, dto.getTargetUserId());
+        GroupRole previousRole = targetMembership.getRole();
 
         if (targetMembership.getRole() != GroupRole.ADMIN) {
             targetMembership.setRole(GroupRole.ADMIN);
+            activityService.logRoleGrantedWart(
+                groupId,
+                user,
+                targetMembership.getUser(),
+                previousRole,
+                targetMembership.getRole()
+            );
         }
 
         return toGroupMemberDto(targetMembership);
@@ -185,6 +247,7 @@ public class GroupService {
         groupAuthorizationService.requireWart(groupId, user);
 
         GroupMember targetMembership = requireTargetMembership(groupId, dto.getTargetUserId());
+        GroupRole previousRole = targetMembership.getRole();
 
         if (targetMembership.getRole() == GroupRole.ADMIN
             && groupMemberRepository.countByGroup_IdAndRole(groupId, GroupRole.ADMIN) <= 1) {
@@ -193,6 +256,13 @@ public class GroupService {
 
         if (targetMembership.getRole() != GroupRole.MEMBER) {
             targetMembership.setRole(GroupRole.MEMBER);
+            activityService.logRoleRevokedWart(
+                groupId,
+                user,
+                targetMembership.getUser(),
+                previousRole,
+                targetMembership.getRole()
+            );
         }
 
         return toGroupMemberDto(targetMembership);
@@ -203,6 +273,7 @@ public class GroupService {
         Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
         List<GroupMember> memberships = groupMemberRepository.findAllByUser_Id(userId);
         for (GroupMember membership : memberships) {
+            activityService.logUserLeftGroup(membership.getGroup().getId(), membership.getUser());
             removeMembershipAndCleanupGroup(membership);
         }
     }

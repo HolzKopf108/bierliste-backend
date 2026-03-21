@@ -70,3 +70,63 @@ ALTER TABLE IF EXISTS settlements
         OR
         (type = 'STRICHE' AND striche_amount IS NOT NULL AND money_amount IS NULL)
     );
+
+CREATE TABLE IF NOT EXISTS group_activities (
+    id BIGSERIAL PRIMARY KEY,
+    group_id BIGINT NOT NULL,
+    activity_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actor_user_id BIGINT NOT NULL,
+    actor_username_snapshot VARCHAR(50) NOT NULL,
+    target_user_id BIGINT,
+    target_username_snapshot VARCHAR(50),
+    type VARCHAR(40) NOT NULL,
+    meta_version INTEGER NOT NULL DEFAULT 1,
+    meta_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_activities_group_timestamp_id
+    ON group_activities(group_id, activity_timestamp, id);
+CREATE INDEX IF NOT EXISTS idx_group_activities_actor_user ON group_activities(actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_group_activities_target_user ON group_activities(target_user_id);
+
+ALTER TABLE IF EXISTS group_activities DROP CONSTRAINT IF EXISTS ck_group_activities_group_id;
+ALTER TABLE IF EXISTS group_activities
+    ADD CONSTRAINT ck_group_activities_group_id CHECK (group_id > 0);
+
+ALTER TABLE IF EXISTS group_activities DROP CONSTRAINT IF EXISTS ck_group_activities_actor_user_id;
+ALTER TABLE IF EXISTS group_activities
+    ADD CONSTRAINT ck_group_activities_actor_user_id CHECK (actor_user_id > 0);
+
+ALTER TABLE IF EXISTS group_activities DROP CONSTRAINT IF EXISTS ck_group_activities_target_user_id;
+ALTER TABLE IF EXISTS group_activities
+    ADD CONSTRAINT ck_group_activities_target_user_id CHECK (target_user_id IS NULL OR target_user_id > 0);
+
+ALTER TABLE IF EXISTS group_activities DROP CONSTRAINT IF EXISTS ck_group_activities_meta_version;
+ALTER TABLE IF EXISTS group_activities
+    ADD CONSTRAINT ck_group_activities_meta_version CHECK (meta_version >= 1);
+
+ALTER TABLE IF EXISTS group_activities DROP CONSTRAINT IF EXISTS ck_group_activities_type;
+ALTER TABLE IF EXISTS group_activities
+    ADD CONSTRAINT ck_group_activities_type CHECK (
+        type IN (
+            'STRICH_INCREMENTED',
+            'STRICHE_DEDUCTED',
+            'MONEY_DEDUCTED',
+            'USER_JOINED_GROUP',
+            'USER_LEFT_GROUP',
+            'ROLE_GRANTED_WART',
+            'ROLE_REVOKED_WART',
+            'GROUP_SETTINGS_CHANGED',
+            'USER_REMOVED_FROM_GROUP',
+            'INVITE_CREATED',
+            'INVITE_USED'
+        )
+    );
+
+ALTER TABLE IF EXISTS group_activities DROP CONSTRAINT IF EXISTS ck_group_activities_target_snapshot;
+ALTER TABLE IF EXISTS group_activities
+    ADD CONSTRAINT ck_group_activities_target_snapshot CHECK (
+        (target_user_id IS NULL AND target_username_snapshot IS NULL)
+        OR
+        (target_user_id IS NOT NULL AND target_username_snapshot IS NOT NULL)
+    );

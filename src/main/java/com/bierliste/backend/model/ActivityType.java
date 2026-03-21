@@ -1,0 +1,15 @@
+package com.bierliste.backend.model;
+
+public enum ActivityType {
+    STRICH_INCREMENTED,
+    STRICHE_DEDUCTED,
+    MONEY_DEDUCTED,
+    USER_JOINED_GROUP,
+    USER_LEFT_GROUP,
+    ROLE_GRANTED_WART,
+    ROLE_REVOKED_WART,
+    GROUP_SETTINGS_CHANGED,
+    USER_REMOVED_FROM_GROUP,
+    INVITE_CREATED,
+    INVITE_USED
+}

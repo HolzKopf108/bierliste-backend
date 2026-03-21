@@ -29,17 +29,20 @@ public class SettlementService {
     private final GroupMemberRepository groupMemberRepository;
     private final SettlementRepository settlementRepository;
     private final GroupAuthorizationService groupAuthorizationService;
+    private final ActivityService activityService;
 
     public SettlementService(
         GroupRepository groupRepository,
         GroupMemberRepository groupMemberRepository,
         SettlementRepository settlementRepository,
-        GroupAuthorizationService groupAuthorizationService
+        GroupAuthorizationService groupAuthorizationService,
+        ActivityService activityService
     ) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.settlementRepository = settlementRepository;
         this.groupAuthorizationService = groupAuthorizationService;
+        this.activityService = activityService;
     }
 
     @Transactional
@@ -63,6 +66,14 @@ public class SettlementService {
             settlement.setType(SettlementType.MONEY);
             settlement.setMoneyAmount(calculation.appliedAmount());
             settlementRepository.save(settlement);
+
+            activityService.logMoneyDeducted(
+                groupId,
+                actor,
+                targetMembership.getUser(),
+                calculation.appliedAmount(),
+                pricePerStrich
+            );
         }
 
         targetMembership.setStrichCount(calculation.newStrichCount());
@@ -75,15 +86,21 @@ public class SettlementService {
         requireWartGroup(groupId, actor);
         GroupMember targetMembership = requireTargetMembership(groupId, targetUserId);
 
-        Settlement settlement = new Settlement();
-        settlement.setGroupId(groupId);
-        settlement.setTargetUserId(targetUserId);
-        settlement.setActorUserId(actor.getId());
-        settlement.setType(SettlementType.STRICHE);
-        settlement.setStricheAmount(dto.getAmount());
-        settlementRepository.save(settlement);
+        int appliedStricheAmount = Math.min(targetMembership.getStrichCount(), dto.getAmount());
 
-        int newStrichCount = Math.max(0, targetMembership.getStrichCount() - dto.getAmount());
+        if (appliedStricheAmount > 0) {
+            Settlement settlement = new Settlement();
+            settlement.setGroupId(groupId);
+            settlement.setTargetUserId(targetUserId);
+            settlement.setActorUserId(actor.getId());
+            settlement.setType(SettlementType.STRICHE);
+            settlement.setStricheAmount(appliedStricheAmount);
+            settlementRepository.save(settlement);
+
+            activityService.logStricheDeducted(groupId, actor, targetMembership.getUser(), appliedStricheAmount);
+        }
+
+        int newStrichCount = targetMembership.getStrichCount() - appliedStricheAmount;
         targetMembership.setStrichCount(newStrichCount);
 
         return toGroupMemberDto(targetMembership);

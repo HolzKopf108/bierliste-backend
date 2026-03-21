@@ -4,6 +4,7 @@ import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.CounterIncrementDto;
 import com.bierliste.backend.dto.CounterResponseDto;
 import com.bierliste.backend.dto.GroupDto;
+import com.bierliste.backend.dto.GroupActivitiesResponseDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.GroupSettingsResponseDto;
@@ -13,6 +14,7 @@ import com.bierliste.backend.dto.MoneySettlementCreateDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.dto.StricheSettlementCreateDto;
 import com.bierliste.backend.model.User;
+import com.bierliste.backend.service.ActivityService;
 import com.bierliste.backend.service.GroupAuthorizationService;
 import com.bierliste.backend.service.GroupService;
 import com.bierliste.backend.service.SettlementService;
@@ -32,15 +34,18 @@ public class GroupController {
     private final GroupService groupService;
     private final GroupAuthorizationService groupAuthorizationService;
     private final SettlementService settlementService;
+    private final ActivityService activityService;
 
     public GroupController(
         GroupService groupService,
         GroupAuthorizationService groupAuthorizationService,
-        SettlementService settlementService
+        SettlementService settlementService,
+        ActivityService activityService
     ) {
         this.groupService = groupService;
         this.groupAuthorizationService = groupAuthorizationService;
         this.settlementService = settlementService;
+        this.activityService = activityService;
     }
 
     @GetMapping
@@ -65,6 +70,17 @@ public class GroupController {
     public ResponseEntity<List<GroupMemberDto>> getGroupMembers(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         groupAuthorizationService.requireMember(groupId, user);
         return ResponseEntity.ok(groupService.getGroupMembersForUser(groupId, user));
+    }
+
+    @GetMapping("/{groupId}/activities")
+    public ResponseEntity<GroupActivitiesResponseDto> getGroupActivities(
+        @PathVariable Long groupId,
+        @RequestParam(required = false) String cursor,
+        @RequestParam(required = false) Integer limit,
+        @AuthenticationPrincipal User user
+    ) {
+        groupAuthorizationService.requireMember(groupId, user);
+        return ResponseEntity.ok(activityService.getActivities(groupId, cursor, limit, user));
     }
 
     @GetMapping("/{groupId}/me/counter")
