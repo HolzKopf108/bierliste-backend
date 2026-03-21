@@ -17,6 +17,13 @@ WHERE only_warts_can_book_for_others IS NULL;
 ALTER TABLE IF EXISTS groups ALTER COLUMN only_warts_can_book_for_others SET DEFAULT TRUE;
 ALTER TABLE IF EXISTS groups ALTER COLUMN only_warts_can_book_for_others SET NOT NULL;
 
+ALTER TABLE IF EXISTS groups ADD COLUMN IF NOT EXISTS allow_arbitrary_money_settlements BOOLEAN;
+UPDATE groups
+SET allow_arbitrary_money_settlements = FALSE
+WHERE allow_arbitrary_money_settlements IS NULL;
+ALTER TABLE IF EXISTS groups ALTER COLUMN allow_arbitrary_money_settlements SET DEFAULT FALSE;
+ALTER TABLE IF EXISTS groups ALTER COLUMN allow_arbitrary_money_settlements SET NOT NULL;
+
 ALTER TABLE IF EXISTS group_members ADD COLUMN IF NOT EXISTS role VARCHAR(30);
 UPDATE group_members
 SET role = 'MEMBER'

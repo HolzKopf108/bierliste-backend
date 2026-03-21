@@ -21,6 +21,9 @@ public class GroupSettingsUpdateDto {
     @NotNull(message = "onlyWartsCanBookForOthers ist erforderlich")
     private Boolean onlyWartsCanBookForOthers;
 
+    @NotNull(message = "allowArbitraryMoneySettlements ist erforderlich")
+    private Boolean allowArbitraryMoneySettlements;
+
     public String getName() {
         return name;
     }
@@ -43,5 +46,13 @@ public class GroupSettingsUpdateDto {
 
     public void setOnlyWartsCanBookForOthers(Boolean onlyWartsCanBookForOthers) {
         this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers;
+    }
+
+    public Boolean getAllowArbitraryMoneySettlements() {
+        return allowArbitraryMoneySettlements;
+    }
+
+    public void setAllowArbitraryMoneySettlements(Boolean allowArbitraryMoneySettlements) {
+        this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements;
     }
 }

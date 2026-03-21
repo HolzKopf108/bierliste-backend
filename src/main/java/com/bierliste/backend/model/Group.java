@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Table(
@@ -39,6 +40,10 @@ public class Group {
     @Column(nullable = false)
     private boolean onlyWartsCanBookForOthers = true;
 
+    @ColumnDefault("false")
+    @Column(nullable = false)
+    private boolean allowArbitraryMoneySettlements = false;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by_user_id", nullable = false, updatable = false)
     private User createdByUser;
@@ -54,6 +59,8 @@ public class Group {
     public void setPricePerStrich(BigDecimal pricePerStrich) { this.pricePerStrich = pricePerStrich; }
     public boolean isOnlyWartsCanBookForOthers() { return onlyWartsCanBookForOthers; }
     public void setOnlyWartsCanBookForOthers(boolean onlyWartsCanBookForOthers) { this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers; }
+    public boolean isAllowArbitraryMoneySettlements() { return allowArbitraryMoneySettlements; }
+    public void setAllowArbitraryMoneySettlements(boolean allowArbitraryMoneySettlements) { this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements; }
     public Long getCreatedByUserId() { return createdByUser != null ? createdByUser.getId() : null; }
     public User getCreatedByUser() { return createdByUser; }
     public void setCreatedByUser(User createdByUser) { this.createdByUser = createdByUser; }

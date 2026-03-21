@@ -163,7 +163,8 @@ class GroupControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of(
                     "name", "Neue Einstellungen",
                     "pricePerStrich", 2.50,
-                    "onlyWartsCanBookForOthers", false
+                    "onlyWartsCanBookForOthers", false,
+                    "allowArbitraryMoneySettlements", true
                 ))))
             .andExpect(status().isUnauthorized())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -227,6 +228,7 @@ class GroupControllerIntegrationTest {
         Group group = createGroup("Settings Gruppe", admin);
         group.setPricePerStrich(new BigDecimal("2.50"));
         group.setOnlyWartsCanBookForOthers(false);
+        group.setAllowArbitraryMoneySettlements(true);
         groupRepository.save(group);
 
         createMembership(group, admin, GroupRole.ADMIN);
@@ -240,7 +242,8 @@ class GroupControllerIntegrationTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.name").value("Settings Gruppe"))
             .andExpect(jsonPath("$.pricePerStrich").value(2.5))
-            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false));
+            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false))
+            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(true));
     }
 
     @Test
@@ -895,6 +898,7 @@ class GroupControllerIntegrationTest {
         var membership = groupMemberRepository.findByGroup_IdAndUser_Id(groupId, creator.getId()).orElseThrow();
         assertThat(persistedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
         assertThat(persistedGroup.isOnlyWartsCanBookForOthers()).isTrue();
+        assertThat(persistedGroup.isAllowArbitraryMoneySettlements()).isFalse();
         assertThat(membership.getRole()).isEqualTo(GroupRole.ADMIN);
         assertThat(membership.getStrichCount()).isZero();
     }
@@ -913,19 +917,22 @@ class GroupControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of(
                     "name", "Neue Gruppe Konfiguration",
                     "pricePerStrich", 2.75,
-                    "onlyWartsCanBookForOthers", false
+                    "onlyWartsCanBookForOthers", false,
+                    "allowArbitraryMoneySettlements", true
                 ))))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.name").value("Neue Gruppe Konfiguration"))
             .andExpect(jsonPath("$.pricePerStrich").value(2.75))
-            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false));
+            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false))
+            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(true));
 
         Group updatedGroup = groupRepository.findById(group.getId()).orElseThrow();
         assertThat(updatedGroup.getName()).isEqualTo("Neue Gruppe Konfiguration");
         assertThat(updatedGroup.getCreatedByUserId()).isEqualTo(admin.getId());
         assertThat(updatedGroup.getPricePerStrich()).isEqualByComparingTo("2.75");
         assertThat(updatedGroup.isOnlyWartsCanBookForOthers()).isFalse();
+        assertThat(updatedGroup.isAllowArbitraryMoneySettlements()).isTrue();
     }
 
     @Test
@@ -942,15 +949,18 @@ class GroupControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of(
                     "name", "Nullpreis Gruppe",
                     "pricePerStrich", 0.00,
-                    "onlyWartsCanBookForOthers", true
+                    "onlyWartsCanBookForOthers", true,
+                    "allowArbitraryMoneySettlements", false
                 ))))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.pricePerStrich").value(0))
-            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(true));
+            .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(true))
+            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(false));
 
         Group updatedGroup = groupRepository.findById(group.getId()).orElseThrow();
         assertThat(updatedGroup.getPricePerStrich()).isEqualByComparingTo("0.00");
+        assertThat(updatedGroup.isAllowArbitraryMoneySettlements()).isFalse();
     }
 
     @Test
@@ -969,7 +979,8 @@ class GroupControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of(
                     "name", "Verbotene Aenderung",
                     "pricePerStrich", 3.10,
-                    "onlyWartsCanBookForOthers", false
+                    "onlyWartsCanBookForOthers", false,
+                    "allowArbitraryMoneySettlements", true
                 ))))
             .andExpect(status().isForbidden())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -978,6 +989,7 @@ class GroupControllerIntegrationTest {
         Group unchangedGroup = groupRepository.findById(group.getId()).orElseThrow();
         assertThat(unchangedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
         assertThat(unchangedGroup.isOnlyWartsCanBookForOthers()).isTrue();
+        assertThat(unchangedGroup.isAllowArbitraryMoneySettlements()).isFalse();
     }
 
     @Test
@@ -995,7 +1007,8 @@ class GroupControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of(
                     "name", "Verdeckte Aenderung",
                     "pricePerStrich", 4.20,
-                    "onlyWartsCanBookForOthers", false
+                    "onlyWartsCanBookForOthers", false,
+                    "allowArbitraryMoneySettlements", true
                 ))))
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -1016,7 +1029,8 @@ class GroupControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of(
                     "name", "Negative Preis Gruppe",
                     "pricePerStrich", -0.01,
-                    "onlyWartsCanBookForOthers", true
+                    "onlyWartsCanBookForOthers", true,
+                    "allowArbitraryMoneySettlements", false
                 ))))
             .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -1037,7 +1051,8 @@ class GroupControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of(
                     "name", " ",
                     "pricePerStrich", 1.50,
-                    "onlyWartsCanBookForOthers", true
+                    "onlyWartsCanBookForOthers", true,
+                    "allowArbitraryMoneySettlements", false
                 ))))
             .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

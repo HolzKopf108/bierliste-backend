@@ -8,21 +8,29 @@ public class GroupSettingsResponseDto {
     private String name;
     private BigDecimal pricePerStrich;
     private Boolean onlyWartsCanBookForOthers;
+    private Boolean allowArbitraryMoneySettlements;
 
     public GroupSettingsResponseDto() {
     }
 
-    public GroupSettingsResponseDto(String name, BigDecimal pricePerStrich, Boolean onlyWartsCanBookForOthers) {
+    public GroupSettingsResponseDto(
+        String name,
+        BigDecimal pricePerStrich,
+        Boolean onlyWartsCanBookForOthers,
+        Boolean allowArbitraryMoneySettlements
+    ) {
         this.name = name;
         this.pricePerStrich = pricePerStrich;
         this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers;
+        this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements;
     }
 
     public static GroupSettingsResponseDto fromEntity(Group group) {
         return new GroupSettingsResponseDto(
             group.getName(),
             group.getPricePerStrich(),
-            group.isOnlyWartsCanBookForOthers()
+            group.isOnlyWartsCanBookForOthers(),
+            group.isAllowArbitraryMoneySettlements()
         );
     }
 
@@ -48,5 +56,13 @@ public class GroupSettingsResponseDto {
 
     public void setOnlyWartsCanBookForOthers(Boolean onlyWartsCanBookForOthers) {
         this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers;
+    }
+
+    public Boolean getAllowArbitraryMoneySettlements() {
+        return allowArbitraryMoneySettlements;
+    }
+
+    public void setAllowArbitraryMoneySettlements(Boolean allowArbitraryMoneySettlements) {
+        this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements;
     }
 }

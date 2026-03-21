@@ -13,7 +13,6 @@ import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.SettlementRepository;
 import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,6 +23,7 @@ public class SettlementService {
     private static final String GROUP_NOT_FOUND_MESSAGE = "Gruppe nicht gefunden";
     private static final String TARGET_NOT_FOUND_MESSAGE = "Gruppenmitglied nicht gefunden";
     private static final String INVALID_PRICE_PER_STRICH_MESSAGE = "pricePerStrich muss groesser als 0 sein";
+    private static final String INVALID_MONEY_MULTIPLE_MESSAGE = "Betrag muss ein exaktes positives Vielfaches von pricePerStrich sein";
 
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
@@ -48,16 +48,24 @@ public class SettlementService {
         BigDecimal pricePerStrich = requirePositivePricePerStrich(group);
         GroupMember targetMembership = requireTargetMembership(groupId, targetUserId);
 
-        Settlement settlement = new Settlement();
-        settlement.setGroupId(groupId);
-        settlement.setTargetUserId(targetUserId);
-        settlement.setActorUserId(actor.getId());
-        settlement.setType(SettlementType.MONEY);
-        settlement.setMoneyAmount(dto.getAmount());
-        settlementRepository.save(settlement);
+        MoneySettlementCalculation calculation = calculateMoneySettlement(
+            targetMembership.getStrichCount(),
+            pricePerStrich,
+            dto.getAmount(),
+            group.isAllowArbitraryMoneySettlements()
+        );
 
-        int newStrichCount = calculateMoneySettlement(targetMembership.getStrichCount(), pricePerStrich, dto.getAmount());
-        targetMembership.setStrichCount(newStrichCount);
+        if (calculation.appliedStrichCount() > 0) {
+            Settlement settlement = new Settlement();
+            settlement.setGroupId(groupId);
+            settlement.setTargetUserId(targetUserId);
+            settlement.setActorUserId(actor.getId());
+            settlement.setType(SettlementType.MONEY);
+            settlement.setMoneyAmount(calculation.appliedAmount());
+            settlementRepository.save(settlement);
+        }
+
+        targetMembership.setStrichCount(calculation.newStrichCount());
 
         return toGroupMemberDto(targetMembership);
     }
@@ -100,19 +108,26 @@ public class SettlementService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, TARGET_NOT_FOUND_MESSAGE));
     }
 
-    private int calculateMoneySettlement(int currentStrichCount, BigDecimal pricePerStrich, BigDecimal amount) {
+    private MoneySettlementCalculation calculateMoneySettlement(
+        int currentStrichCount,
+        BigDecimal pricePerStrich,
+        BigDecimal amount,
+        boolean allowArbitraryMoneySettlements
+    ) {
+        if (!allowArbitraryMoneySettlements && amount.remainder(pricePerStrich).compareTo(BigDecimal.ZERO) != 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, INVALID_MONEY_MULTIPLE_MESSAGE);
+        }
+
         if (currentStrichCount <= 0) {
-            return 0;
+            return new MoneySettlementCalculation(0, 0, BigDecimal.ZERO);
         }
 
-        BigDecimal currentDebt = pricePerStrich.multiply(BigDecimal.valueOf(currentStrichCount));
-        BigDecimal newDebt = currentDebt.subtract(amount);
+        int requestedStrichCount = amount.divideToIntegralValue(pricePerStrich).intValueExact();
+        int appliedStrichCount = Math.min(currentStrichCount, requestedStrichCount);
+        int newStrichCount = currentStrichCount - appliedStrichCount;
+        BigDecimal appliedAmount = pricePerStrich.multiply(BigDecimal.valueOf(appliedStrichCount));
 
-        if (newDebt.signum() <= 0) {
-            return 0;
-        }
-
-        return newDebt.divide(pricePerStrich, 0, RoundingMode.CEILING).intValueExact();
+        return new MoneySettlementCalculation(newStrichCount, appliedStrichCount, appliedAmount);
     }
 
     private GroupMemberDto toGroupMemberDto(GroupMember membership) {
@@ -123,5 +138,8 @@ public class SettlementService {
             membership.getRole(),
             membership.getStrichCount()
         );
+    }
+
+    private record MoneySettlementCalculation(int newStrichCount, int appliedStrichCount, BigDecimal appliedAmount) {
     }
 }

@@ -67,16 +67,16 @@ class SettlementControllerIntegrationTest {
     }
 
     @Test
-    void createMoneySettlementReducesStricheWithPartialPaymentAndPersistsSettlement() throws Exception {
-        User admin = createUser("money-admin@example.com", "MoneyAdmin");
-        User target = createUser("money-target@example.com", "MoneyTarget");
-        Group group = createGroup("Money Gruppe", admin);
-        group.setPricePerStrich(new BigDecimal("1.00"));
+    void createMoneySettlementReturnsBadRequestWhenArbitraryAmountsAreDisabledAndAmountIsNotMultipleOfPricePerStrich() throws Exception {
+        User admin = createUser("money-invalid-multiple-admin@example.com", "MoneyAdmin");
+        User target = createUser("money-invalid-multiple-target@example.com", "MoneyTarget");
+        Group group = createGroup("Money Invalid Multiple", admin);
+        group.setPricePerStrich(new BigDecimal("1.50"));
         groupRepository.save(group);
 
         createMembership(group, admin, GroupRole.ADMIN);
         GroupMember targetMembership = createMembership(group, target, GroupRole.MEMBER);
-        targetMembership.setStrichCount(2);
+        targetMembership.setStrichCount(3);
         groupMemberRepository.save(targetMembership);
 
         String token = jwtTokenProvider.createAccessToken(admin);
@@ -84,33 +84,21 @@ class SettlementControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/members/" + target.getId() + "/settlements/money")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("amount", 1.50))))
-            .andExpect(status().isOk())
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1.00))))
+            .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.userId").value(target.getId()))
-            .andExpect(jsonPath("$.username").value("MoneyTarget"))
-            .andExpect(jsonPath("$.role").value("MEMBER"))
-            .andExpect(jsonPath("$.joinedAt").isNotEmpty())
-            .andExpect(jsonPath("$.strichCount").value(1));
+            .andExpect(jsonPath("$.error").value("Betrag muss ein exaktes positives Vielfaches von pricePerStrich sein"));
 
-        GroupMember updatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
-        assertThat(updatedMembership.getStrichCount()).isEqualTo(1);
-
-        assertThat(settlementRepository.count()).isEqualTo(1);
-        Settlement settlement = settlementRepository.findAll().getFirst();
-        assertThat(settlement.getGroupId()).isEqualTo(group.getId());
-        assertThat(settlement.getTargetUserId()).isEqualTo(target.getId());
-        assertThat(settlement.getActorUserId()).isEqualTo(admin.getId());
-        assertThat(settlement.getType()).isEqualTo(SettlementType.MONEY);
-        assertThat(settlement.getMoneyAmount()).isEqualByComparingTo("1.50");
-        assertThat(settlement.getStricheAmount()).isNull();
+        GroupMember unchangedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(unchangedMembership.getStrichCount()).isEqualTo(3);
+        assertThat(settlementRepository.count()).isZero();
     }
 
     @Test
-    void createMoneySettlementRoundsUpRemainingDebtUsingPricePerStrich() throws Exception {
-        User admin = createUser("money-rounding-admin@example.com", "MoneyRoundAdmin");
-        User target = createUser("money-rounding-target@example.com", "MoneyRoundTarget");
-        Group group = createGroup("Money Rounding Gruppe", admin);
+    void createMoneySettlementAllowsExactMultipleWhenArbitraryAmountsAreDisabled() throws Exception {
+        User admin = createUser("money-exact-admin@example.com", "MoneyAdmin");
+        User target = createUser("money-exact-target@example.com", "MoneyTarget");
+        Group group = createGroup("Money Exact Gruppe", admin);
         group.setPricePerStrich(new BigDecimal("1.50"));
         groupRepository.save(group);
 
@@ -124,12 +112,92 @@ class SettlementControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/members/" + target.getId() + "/settlements/money")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("amount", 4.00))))
+                .content(objectMapper.writeValueAsString(Map.of("amount", 3.00))))
             .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.userId").value(target.getId()))
+            .andExpect(jsonPath("$.username").value("MoneyTarget"))
+            .andExpect(jsonPath("$.role").value("MEMBER"))
+            .andExpect(jsonPath("$.joinedAt").isNotEmpty())
             .andExpect(jsonPath("$.strichCount").value(3));
 
         GroupMember updatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
         assertThat(updatedMembership.getStrichCount()).isEqualTo(3);
+
+        assertThat(settlementRepository.count()).isEqualTo(1);
+        Settlement settlement = settlementRepository.findAll().getFirst();
+        assertThat(settlement.getGroupId()).isEqualTo(group.getId());
+        assertThat(settlement.getTargetUserId()).isEqualTo(target.getId());
+        assertThat(settlement.getActorUserId()).isEqualTo(admin.getId());
+        assertThat(settlement.getType()).isEqualTo(SettlementType.MONEY);
+        assertThat(settlement.getMoneyAmount()).isEqualByComparingTo("3.00");
+        assertThat(settlement.getStricheAmount()).isNull();
+    }
+
+    @Test
+    void createMoneySettlementAllowsPartialAmountWhenArbitraryAmountsAreEnabledAndKeepsStrichCount() throws Exception {
+        User admin = createUser("money-arbitrary-admin@example.com", "MoneyAdmin");
+        User target = createUser("money-arbitrary-target@example.com", "MoneyTarget");
+        Group group = createGroup("Money Arbitrary Gruppe", admin);
+        group.setPricePerStrich(new BigDecimal("1.50"));
+        group.setAllowArbitraryMoneySettlements(true);
+        groupRepository.save(group);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        GroupMember targetMembership = createMembership(group, target, GroupRole.MEMBER);
+        targetMembership.setStrichCount(1);
+        groupMemberRepository.save(targetMembership);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/members/" + target.getId() + "/settlements/money")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1.00))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.strichCount").value(1));
+
+        GroupMember updatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(updatedMembership.getStrichCount()).isEqualTo(1);
+        assertThat(settlementRepository.count()).isZero();
+    }
+
+    @Test
+    void createMoneySettlementRoundsDownAndStoresOnlyAppliedFullStricheWhenArbitraryAmountsAreEnabled() throws Exception {
+        User admin = createUser("money-floor-admin@example.com", "MoneyAdmin");
+        User target = createUser("money-floor-target@example.com", "MoneyTarget");
+        Group group = createGroup("Money Floor Gruppe", admin);
+        group.setPricePerStrich(new BigDecimal("1.50"));
+        group.setAllowArbitraryMoneySettlements(true);
+        groupRepository.save(group);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        GroupMember targetMembership = createMembership(group, target, GroupRole.MEMBER);
+        targetMembership.setStrichCount(5);
+        groupMemberRepository.save(targetMembership);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/members/" + target.getId() + "/settlements/money")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 2.99))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.userId").value(target.getId()))
+            .andExpect(jsonPath("$.username").value("MoneyTarget"))
+            .andExpect(jsonPath("$.role").value("MEMBER"))
+            .andExpect(jsonPath("$.joinedAt").isNotEmpty())
+            .andExpect(jsonPath("$.strichCount").value(4));
+
+        GroupMember updatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(updatedMembership.getStrichCount()).isEqualTo(4);
+
+        assertThat(settlementRepository.count()).isEqualTo(1);
+        Settlement settlement = settlementRepository.findAll().getFirst();
+        assertThat(settlement.getType()).isEqualTo(SettlementType.MONEY);
+        assertThat(settlement.getMoneyAmount()).isEqualByComparingTo("1.50");
     }
 
     @Test

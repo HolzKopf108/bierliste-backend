@@ -80,6 +80,7 @@ class GroupServiceIntegrationTest {
         assertThat(persistedGroup.getName()).isEqualTo("Neue Gruppe");
         assertThat(persistedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
         assertThat(persistedGroup.isOnlyWartsCanBookForOthers()).isTrue();
+        assertThat(persistedGroup.isAllowArbitraryMoneySettlements()).isFalse();
         assertThat(persistedMember.getRole()).isEqualTo(GroupRole.ADMIN);
         assertThat(persistedMember.getGroup().getId()).isEqualTo(persistedGroup.getId());
         assertThat(persistedMember.getUser().getId()).isEqualTo(creator.getId());

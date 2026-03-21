@@ -107,6 +107,7 @@ public class GroupService {
         group.setName(dto.getName().trim());
         group.setPricePerStrich(dto.getPricePerStrich());
         group.setOnlyWartsCanBookForOthers(dto.getOnlyWartsCanBookForOthers());
+        group.setAllowArbitraryMoneySettlements(dto.getAllowArbitraryMoneySettlements());
 
         return GroupSettingsResponseDto.fromEntity(group);
     }
