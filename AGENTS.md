@@ -67,8 +67,9 @@ Arbeite so, dass bestehende Architektur, Namenskonventionen und Patterns des Rep
 - Bestehende User- und Auth-Patterns zuerst prüfen und wiederverwenden
 - Datenbankschema gehört primär in die Java-/JPA-Definitionen:
   - Tabellen, Spalten, Indizes, Defaults und Constraints nach Möglichkeit über Entity-Mapping und passende Hibernate-/JPA-Annotationen modellieren
-  - `schema.sql` nicht für reguläre Schema-Erstellung oder Schema-Pflege verwenden, sondern nur für Migrationen bestehender Datenbestände
-  - `schema.sql` sollte leer bleiben, wenn keine Datenmigration für bereits existierende Datensätze nötig ist
+  - `schema.sql` nicht für reguläre Schema-Erstellung oder laufende Schema-Pflege verwenden, sondern nur für idempotente Einmal-Migrationen bestehender Datenbestände, die beim ersten Start nach einem Update nötig sind
+  - Solche Einträge in `schema.sql` müssen so formuliert sein, dass sie bei späteren Starts keine weiteren Änderungen mehr verursachen und als No-Op durchlaufen
+  - Wenn für bestehende Datensätze keine solche Startmigration nötig ist, sollte `schema.sql` leer bleiben
 - Bei neuen Features zuerst prüfen, wie ähnliche Features bereits im Repo umgesetzt sind
 - Wenn ein GitHub-Issue umgesetzt wird:
   - Akzeptanzkriterien vollständig abarbeiten

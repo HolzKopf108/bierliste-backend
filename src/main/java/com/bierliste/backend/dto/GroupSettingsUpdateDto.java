@@ -1,5 +1,6 @@
 package com.bierliste.backend.dto;
 
+import com.bierliste.backend.model.GroupInvitePermission;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -23,6 +24,9 @@ public class GroupSettingsUpdateDto {
 
     @NotNull(message = "allowArbitraryMoneySettlements ist erforderlich")
     private Boolean allowArbitraryMoneySettlements;
+
+    @NotNull(message = "invitePermission ist erforderlich")
+    private GroupInvitePermission invitePermission;
 
     public String getName() {
         return name;
@@ -54,5 +58,13 @@ public class GroupSettingsUpdateDto {
 
     public void setAllowArbitraryMoneySettlements(Boolean allowArbitraryMoneySettlements) {
         this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements;
+    }
+
+    public GroupInvitePermission getInvitePermission() {
+        return invitePermission;
+    }
+
+    public void setInvitePermission(GroupInvitePermission invitePermission) {
+        this.invitePermission = invitePermission;
     }
 }

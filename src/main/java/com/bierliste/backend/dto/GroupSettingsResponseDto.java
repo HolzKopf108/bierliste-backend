@@ -1,6 +1,7 @@
 package com.bierliste.backend.dto;
 
 import com.bierliste.backend.model.Group;
+import com.bierliste.backend.model.GroupInvitePermission;
 import java.math.BigDecimal;
 
 public class GroupSettingsResponseDto {
@@ -9,6 +10,7 @@ public class GroupSettingsResponseDto {
     private BigDecimal pricePerStrich;
     private Boolean onlyWartsCanBookForOthers;
     private Boolean allowArbitraryMoneySettlements;
+    private GroupInvitePermission invitePermission;
 
     public GroupSettingsResponseDto() {
     }
@@ -17,12 +19,14 @@ public class GroupSettingsResponseDto {
         String name,
         BigDecimal pricePerStrich,
         Boolean onlyWartsCanBookForOthers,
-        Boolean allowArbitraryMoneySettlements
+        Boolean allowArbitraryMoneySettlements,
+        GroupInvitePermission invitePermission
     ) {
         this.name = name;
         this.pricePerStrich = pricePerStrich;
         this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers;
         this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements;
+        this.invitePermission = invitePermission;
     }
 
     public static GroupSettingsResponseDto fromEntity(Group group) {
@@ -30,7 +34,8 @@ public class GroupSettingsResponseDto {
             group.getName(),
             group.getPricePerStrich(),
             group.isOnlyWartsCanBookForOthers(),
-            group.isAllowArbitraryMoneySettlements()
+            group.isAllowArbitraryMoneySettlements(),
+            group.getInvitePermission()
         );
     }
 
@@ -64,5 +69,13 @@ public class GroupSettingsResponseDto {
 
     public void setAllowArbitraryMoneySettlements(Boolean allowArbitraryMoneySettlements) {
         this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements;
+    }
+
+    public GroupInvitePermission getInvitePermission() {
+        return invitePermission;
+    }
+
+    public void setInvitePermission(GroupInvitePermission invitePermission) {
+        this.invitePermission = invitePermission;
     }
 }

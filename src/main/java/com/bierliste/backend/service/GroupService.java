@@ -10,14 +10,15 @@ import com.bierliste.backend.dto.GroupSummaryDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.dto.GroupSettingsUpdateDto;
 import com.bierliste.backend.model.Group;
+import com.bierliste.backend.model.GroupInvitePermission;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
+import com.bierliste.backend.repository.GroupInviteRepository;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,17 +32,20 @@ import java.util.Map;
 public class GroupService {
 
     private final GroupRepository groupRepository;
+    private final GroupInviteRepository groupInviteRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
     private final GroupAuthorizationService groupAuthorizationService;
     private final ActivityService activityService;
 
     public GroupService(GroupRepository groupRepository,
+                        GroupInviteRepository groupInviteRepository,
                         GroupMemberRepository groupMemberRepository,
                         UserRepository userRepository,
                         GroupAuthorizationService groupAuthorizationService,
                         ActivityService activityService) {
         this.groupRepository = groupRepository;
+        this.groupInviteRepository = groupInviteRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
         this.groupAuthorizationService = groupAuthorizationService;
@@ -114,18 +118,21 @@ public class GroupService {
         BigDecimal newPricePerStrich = dto.getPricePerStrich();
         boolean newOnlyWartsCanBookForOthers = dto.getOnlyWartsCanBookForOthers();
         boolean newAllowArbitraryMoneySettlements = dto.getAllowArbitraryMoneySettlements();
+        GroupInvitePermission newInvitePermission = dto.getInvitePermission();
 
         Map<String, Object> oldValues = new LinkedHashMap<>();
         oldValues.put("name", group.getName());
         oldValues.put("pricePerStrich", group.getPricePerStrich());
         oldValues.put("onlyWartsCanBookForOthers", group.isOnlyWartsCanBookForOthers());
         oldValues.put("allowArbitraryMoneySettlements", group.isAllowArbitraryMoneySettlements());
+        oldValues.put("invitePermission", group.getInvitePermission());
 
         Map<String, Object> newValues = new LinkedHashMap<>();
         newValues.put("name", newName);
         newValues.put("pricePerStrich", newPricePerStrich);
         newValues.put("onlyWartsCanBookForOthers", newOnlyWartsCanBookForOthers);
         newValues.put("allowArbitraryMoneySettlements", newAllowArbitraryMoneySettlements);
+        newValues.put("invitePermission", newInvitePermission);
 
         List<String> changedFields = activityService.determineChangedFields(oldValues, newValues);
 
@@ -133,6 +140,7 @@ public class GroupService {
         group.setPricePerStrich(newPricePerStrich);
         group.setOnlyWartsCanBookForOthers(newOnlyWartsCanBookForOthers);
         group.setAllowArbitraryMoneySettlements(newAllowArbitraryMoneySettlements);
+        group.setInvitePermission(newInvitePermission);
 
         if (!changedFields.isEmpty()) {
             activityService.logGroupSettingsChanged(
@@ -186,32 +194,6 @@ public class GroupService {
         );
 
         return updatedCount;
-    }
-
-    @Transactional
-    public void joinGroup(Long groupId, User user) {
-        Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
-
-        Group group = groupRepository.findById(groupId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
-
-        if (groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, userId)) {
-            return;
-        }
-
-        GroupMember membership = new GroupMember();
-        membership.setGroup(group);
-        membership.setUser(user);
-        membership.setRole(GroupRole.MEMBER);
-
-        try {
-            groupMemberRepository.save(membership);
-            activityService.logUserJoinedGroup(groupId, user);
-        } catch (DataIntegrityViolationException ex) {
-            if (!groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, userId)) {
-                throw ex;
-            }
-        }
     }
 
     @Transactional
@@ -287,6 +269,7 @@ public class GroupService {
         groupMemberRepository.flush();
 
         if (!groupMemberRepository.existsByGroup_Id(groupId)) {
+            groupInviteRepository.deleteAllByGroup_Id(groupId);
             groupRepository.delete(group);
             return;
         }

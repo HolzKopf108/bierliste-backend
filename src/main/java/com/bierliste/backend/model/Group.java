@@ -18,7 +18,7 @@ import org.hibernate.annotations.ColumnDefault;
         @Index(name = "idx_groups_created_by", columnList = "created_by_user_id")
     }
 )
-@Check(constraints = "price_per_strich >= 0")
+@Check(constraints = "price_per_strich >= 0 and invite_permission in ('ONLY_WARTS', 'ALL_MEMBERS')")
 public class Group {
 
     public static final BigDecimal DEFAULT_PRICE_PER_STRICH = new BigDecimal("1.00");
@@ -49,6 +49,11 @@ public class Group {
     @Column(nullable = false)
     private boolean allowArbitraryMoneySettlements = false;
 
+    @Enumerated(EnumType.STRING)
+    @ColumnDefault("'ONLY_WARTS'")
+    @Column(nullable = false, length = 30)
+    private GroupInvitePermission invitePermission = GroupInvitePermission.ONLY_WARTS;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by_user_id", nullable = false, updatable = false)
     private User createdByUser;
@@ -66,6 +71,8 @@ public class Group {
     public void setOnlyWartsCanBookForOthers(boolean onlyWartsCanBookForOthers) { this.onlyWartsCanBookForOthers = onlyWartsCanBookForOthers; }
     public boolean isAllowArbitraryMoneySettlements() { return allowArbitraryMoneySettlements; }
     public void setAllowArbitraryMoneySettlements(boolean allowArbitraryMoneySettlements) { this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements; }
+    public GroupInvitePermission getInvitePermission() { return invitePermission; }
+    public void setInvitePermission(GroupInvitePermission invitePermission) { this.invitePermission = invitePermission; }
     public Long getCreatedByUserId() { return createdByUser != null ? createdByUser.getId() : null; }
     public User getCreatedByUser() { return createdByUser; }
     public void setCreatedByUser(User createdByUser) { this.createdByUser = createdByUser; }

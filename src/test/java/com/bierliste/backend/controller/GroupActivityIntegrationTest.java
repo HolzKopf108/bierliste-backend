@@ -11,10 +11,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.bierliste.backend.model.ActivityType;
 import com.bierliste.backend.model.Group;
 import com.bierliste.backend.model.GroupActivity;
+import com.bierliste.backend.model.GroupInvite;
+import com.bierliste.backend.model.GroupInvitePermission;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.repository.GroupActivityRepository;
+import com.bierliste.backend.repository.GroupInviteRepository;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
@@ -60,6 +63,9 @@ class GroupActivityIntegrationTest {
     private GroupActivityRepository groupActivityRepository;
 
     @Autowired
+    private GroupInviteRepository groupInviteRepository;
+
+    @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
     @Test
@@ -77,14 +83,15 @@ class GroupActivityIntegrationTest {
         Group group = createGroup("Join Verlauf", admin);
 
         createMembership(group, admin, GroupRole.ADMIN);
+        GroupInvite invite = createInvite(group, admin, Instant.now().plusSeconds(3600));
 
         String memberToken = jwtTokenProvider.createAccessToken(member);
 
-        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/join")
+        mockMvc.perform(post("/api/v1/invites/" + invite.getToken() + "/join")
                 .header("Authorization", "Bearer " + memberToken))
             .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/join")
+        mockMvc.perform(post("/api/v1/invites/" + invite.getToken() + "/join")
                 .header("Authorization", "Bearer " + memberToken))
             .andExpect(status().isOk());
 
@@ -101,7 +108,7 @@ class GroupActivityIntegrationTest {
         assertThat(activities.get(0).getTargetUserId()).isEqualTo(member.getId());
         assertThat(activities.get(0).getActorUsernameSnapshot()).isEqualTo("JoinMember");
         assertThat(activities.get(0).getTargetUsernameSnapshot()).isEqualTo("JoinMember");
-        assertThat(activities.get(1).getMeta()).isEmpty();
+        assertThat(activities.get(1).getMeta()).containsEntry("via", "INVITE");
     }
 
     @Test
@@ -218,7 +225,8 @@ class GroupActivityIntegrationTest {
                     "name", "Role Verlauf Neu",
                     "pricePerStrich", 2.75,
                     "onlyWartsCanBookForOthers", false,
-                    "allowArbitraryMoneySettlements", true
+                    "allowArbitraryMoneySettlements", true,
+                    "invitePermission", "ALL_MEMBERS"
                 ))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("Role Verlauf Neu"));
@@ -230,9 +238,10 @@ class GroupActivityIntegrationTest {
         assertThat(activities.get(0).getActorUserId()).isEqualTo(admin.getId());
         assertThat(activities.get(0).getTargetUserId()).isNull();
         assertThat(readStringList(activities.get(0), "changedFields"))
-            .containsExactly("name", "pricePerStrich", "onlyWartsCanBookForOthers", "allowArbitraryMoneySettlements");
+            .containsExactly("name", "pricePerStrich", "onlyWartsCanBookForOthers", "allowArbitraryMoneySettlements", "invitePermission");
         assertThat(readMetaMap(activities.get(0), "old")).containsEntry("name", "Role Verlauf");
         assertThat(readMetaMap(activities.get(0), "new")).containsEntry("name", "Role Verlauf Neu");
+        assertThat(readMetaMap(activities.get(0), "new")).containsEntry("invitePermission", GroupInvitePermission.ALL_MEMBERS);
         assertThat(activities.get(1).getType()).isEqualTo(ActivityType.ROLE_REVOKED_WART);
         assertThat(activities.get(1).getActorUserId()).isEqualTo(admin.getId());
         assertThat(activities.get(1).getTargetUserId()).isEqualTo(target.getId());
@@ -267,13 +276,15 @@ class GroupActivityIntegrationTest {
                     "name", "Endpoint Verlauf",
                     "pricePerStrich", new BigDecimal("1.00"),
                     "onlyWartsCanBookForOthers", true,
-                    "allowArbitraryMoneySettlements", false
+                    "allowArbitraryMoneySettlements", false,
+                    "invitePermission", GroupInvitePermission.ONLY_WARTS.name()
                 ),
                 "new", Map.of(
                     "name", "Endpoint Verlauf Neu",
                     "pricePerStrich", new BigDecimal("1.00"),
                     "onlyWartsCanBookForOthers", true,
-                    "allowArbitraryMoneySettlements", false
+                    "allowArbitraryMoneySettlements", false,
+                    "invitePermission", GroupInvitePermission.ONLY_WARTS.name()
                 )
             )
         );
@@ -295,6 +306,7 @@ class GroupActivityIntegrationTest {
             .andExpect(jsonPath("$.items[0].changedFields[0]").value("NAME"))
             .andExpect(jsonPath("$.items[0].oldSettings.name").value("Endpoint Verlauf"))
             .andExpect(jsonPath("$.items[0].newSettings.name").value("Endpoint Verlauf Neu"))
+            .andExpect(jsonPath("$.items[0].newSettings.invitePermission").value("ONLY_WARTS"))
             .andExpect(jsonPath("$.items[1].id").value(second.getId()))
             .andExpect(jsonPath("$.items[1].type").value("STRICH_INCREMENTED"))
             .andExpect(jsonPath("$.items[1].target.userId").value(target.getId()))
@@ -366,6 +378,15 @@ class GroupActivityIntegrationTest {
         groupMember.setUser(user);
         groupMember.setRole(role);
         return groupMemberRepository.save(groupMember);
+    }
+
+    private GroupInvite createInvite(Group group, User createdByUser, Instant expiresAt) {
+        GroupInvite invite = new GroupInvite();
+        invite.setGroup(group);
+        invite.setToken("invite-token-" + createdByUser.getId() + "-" + System.nanoTime());
+        invite.setCreatedByUserId(createdByUser.getId());
+        invite.setExpiresAt(expiresAt);
+        return groupInviteRepository.save(invite);
     }
 
     private GroupActivity createActivity(

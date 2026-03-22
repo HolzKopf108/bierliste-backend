@@ -9,9 +9,12 @@ import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.PromoteGroupMemberDto;
 import com.bierliste.backend.model.Group;
+import com.bierliste.backend.model.GroupInvite;
+import com.bierliste.backend.model.GroupInvitePermission;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
+import com.bierliste.backend.repository.GroupInviteRepository;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
@@ -19,6 +22,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.validation.ConstraintViolationException;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -46,6 +50,9 @@ class GroupServiceIntegrationTest {
 
     @Autowired
     private GroupMemberRepository groupMemberRepository;
+
+    @Autowired
+    private GroupInviteRepository groupInviteRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -81,6 +88,7 @@ class GroupServiceIntegrationTest {
         assertThat(persistedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
         assertThat(persistedGroup.isOnlyWartsCanBookForOthers()).isTrue();
         assertThat(persistedGroup.isAllowArbitraryMoneySettlements()).isFalse();
+        assertThat(persistedGroup.getInvitePermission()).isEqualTo(GroupInvitePermission.ONLY_WARTS);
         assertThat(persistedMember.getRole()).isEqualTo(GroupRole.ADMIN);
         assertThat(persistedMember.getGroup().getId()).isEqualTo(persistedGroup.getId());
         assertThat(persistedMember.getUser().getId()).isEqualTo(creator.getId());
@@ -120,11 +128,13 @@ class GroupServiceIntegrationTest {
         User creator = createUser("last-member@example.com", "last-member");
         Group group = createGroup("Leere Gruppe", creator);
         createMembership(group, creator, GroupRole.ADMIN);
+        createInvite(group, creator, "cleanup-invite", Instant.now().plusSeconds(3600));
 
         groupService.leaveGroup(group.getId(), creator);
 
         assertThat(groupRepository.findById(group.getId())).isEmpty();
         assertThat(groupMemberRepository.findAllByGroup_Id(group.getId())).isEmpty();
+        assertThat(groupInviteRepository.findAll()).isEmpty();
     }
 
     @Test
@@ -335,5 +345,14 @@ class GroupServiceIntegrationTest {
         groupMember.setUser(user);
         groupMember.setRole(role);
         return groupMemberRepository.save(groupMember);
+    }
+
+    private GroupInvite createInvite(Group group, User createdByUser, String token, Instant expiresAt) {
+        GroupInvite invite = new GroupInvite();
+        invite.setGroup(group);
+        invite.setToken(token);
+        invite.setCreatedByUserId(createdByUser.getId());
+        invite.setExpiresAt(expiresAt);
+        return groupInviteRepository.save(invite);
     }
 }

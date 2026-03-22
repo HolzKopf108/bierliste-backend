@@ -18,6 +18,7 @@ import com.bierliste.backend.dto.UserRemovedFromGroupActivityDto;
 import com.bierliste.backend.model.ActivityType;
 import com.bierliste.backend.model.GroupActivity;
 import com.bierliste.backend.model.GroupActivityBookingMode;
+import com.bierliste.backend.model.GroupInvitePermission;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.GroupSettingsChangedField;
 import com.bierliste.backend.model.User;
@@ -78,7 +79,16 @@ public class ActivityService {
     }
 
     public void logUserJoinedGroup(Long groupId, User user) {
-        log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of());
+        logUserJoinedGroup(groupId, user, null);
+    }
+
+    public void logUserJoinedGroup(Long groupId, User user, String via) {
+        if (via == null || via.isBlank()) {
+            log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of());
+            return;
+        }
+
+        log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of("via", via));
     }
 
     public void logUserLeftGroup(Long groupId, User user) {
@@ -417,6 +427,7 @@ public class ActivityService {
         dto.setPricePerStrich(readOptionalBigDecimal(values, "pricePerStrich"));
         dto.setOnlyWartsCanBookForOthers(readOptionalBoolean(values, "onlyWartsCanBookForOthers"));
         dto.setAllowArbitraryMoneySettlements(readOptionalBoolean(values, "allowArbitraryMoneySettlements"));
+        dto.setInvitePermission(readOptionalGroupInvitePermission(values, "invitePermission"));
         return dto;
     }
 
@@ -442,6 +453,20 @@ public class ActivityService {
         throw new IllegalStateException("Ungueltiger Boolean-Activity-Wert fuer " + key);
     }
 
+    private GroupInvitePermission readOptionalGroupInvitePermission(Map<String, Object> values, String key) {
+        Object value = values.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof GroupInvitePermission invitePermission) {
+            return invitePermission;
+        }
+        if (value instanceof String stringValue) {
+            return GroupInvitePermission.valueOf(stringValue);
+        }
+        throw new IllegalStateException("Ungültiger InvitePermission-Activity-Wert für " + key);
+    }
+
     private GroupSettingsChangedField toGroupSettingsChangedField(String value) {
         return switch (value) {
             case "name", "NAME" -> GroupSettingsChangedField.NAME;
@@ -450,6 +475,7 @@ public class ActivityService {
                 GroupSettingsChangedField.ONLY_WARTS_CAN_BOOK_FOR_OTHERS;
             case "allowArbitraryMoneySettlements", "ALLOW_ARBITRARY_MONEY_SETTLEMENTS" ->
                 GroupSettingsChangedField.ALLOW_ARBITRARY_MONEY_SETTLEMENTS;
+            case "invitePermission", "INVITE_PERMISSION" -> GroupSettingsChangedField.INVITE_PERMISSION;
             default -> throw new IllegalStateException("Unbekanntes GroupSettings-Feld: " + value);
         };
     }

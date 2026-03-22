@@ -1,6 +1,7 @@
 package com.bierliste.backend.service;
 
 import com.bierliste.backend.model.Group;
+import com.bierliste.backend.model.GroupInvitePermission;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
@@ -60,6 +61,15 @@ public class GroupAuthorizationService {
         if (membership.getRole() != GroupRole.ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, WART_REQUIRED_MESSAGE);
         }
+    }
+
+    public GroupMember requireInviteCreationPermission(Long groupId, User user) {
+        GroupMember membership = requireMemberEntity(groupId, user);
+        if (membership.getGroup().getInvitePermission() == GroupInvitePermission.ONLY_WARTS
+            && membership.getRole() != GroupRole.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, WART_REQUIRED_MESSAGE);
+        }
+        return membership;
     }
 
     public boolean isMember(Long groupId, User user) {

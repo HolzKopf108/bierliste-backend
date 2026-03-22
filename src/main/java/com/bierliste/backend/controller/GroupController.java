@@ -5,6 +5,7 @@ import com.bierliste.backend.dto.CounterIncrementDto;
 import com.bierliste.backend.dto.CounterResponseDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupActivitiesResponseDto;
+import com.bierliste.backend.dto.GroupInviteResponseDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupRoleDto;
 import com.bierliste.backend.dto.GroupSettingsResponseDto;
@@ -16,6 +17,7 @@ import com.bierliste.backend.dto.StricheSettlementCreateDto;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.service.ActivityService;
 import com.bierliste.backend.service.GroupAuthorizationService;
+import com.bierliste.backend.service.GroupInviteService;
 import com.bierliste.backend.service.GroupService;
 import com.bierliste.backend.service.SettlementService;
 import jakarta.validation.Valid;
@@ -33,17 +35,20 @@ public class GroupController {
 
     private final GroupService groupService;
     private final GroupAuthorizationService groupAuthorizationService;
+    private final GroupInviteService groupInviteService;
     private final SettlementService settlementService;
     private final ActivityService activityService;
 
     public GroupController(
         GroupService groupService,
         GroupAuthorizationService groupAuthorizationService,
+        GroupInviteService groupInviteService,
         SettlementService settlementService,
         ActivityService activityService
     ) {
         this.groupService = groupService;
         this.groupAuthorizationService = groupAuthorizationService;
+        this.groupInviteService = groupInviteService;
         this.settlementService = settlementService;
         this.activityService = activityService;
     }
@@ -126,18 +131,16 @@ public class GroupController {
         return ResponseEntity.ok(new CounterResponseDto(groupService.incrementMemberCounterForGroup(groupId, targetUserId, dto, user)));
     }
 
-    @PostMapping("/{groupId}/join")
-    public ResponseEntity<Map<String, String>> joinGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
-        groupAuthorizationService.requireAuthenticatedUserId(user);
-        groupService.joinGroup(groupId, user);
-        return ResponseEntity.ok(Map.of("message", "Mitgliedschaft aktiv"));
-    }
-
     @PostMapping("/{groupId}/leave")
     public ResponseEntity<Map<String, String>> leaveGroup(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         groupAuthorizationService.requireMember(groupId, user);
         groupService.leaveGroup(groupId, user);
         return ResponseEntity.ok(Map.of("message", "Gruppe verlassen"));
+    }
+
+    @PostMapping("/{groupId}/invites")
+    public ResponseEntity<GroupInviteResponseDto> createInvite(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(groupInviteService.createInvite(groupId, user));
     }
 
     @PostMapping("/{groupId}/roles/promote")

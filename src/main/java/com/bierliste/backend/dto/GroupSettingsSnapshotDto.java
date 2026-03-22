@@ -1,5 +1,6 @@
 package com.bierliste.backend.dto;
 
+import com.bierliste.backend.model.GroupInvitePermission;
 import java.math.BigDecimal;
 
 public class GroupSettingsSnapshotDto {
@@ -8,6 +9,7 @@ public class GroupSettingsSnapshotDto {
     private BigDecimal pricePerStrich;
     private Boolean onlyWartsCanBookForOthers;
     private Boolean allowArbitraryMoneySettlements;
+    private GroupInvitePermission invitePermission;
 
     public GroupSettingsSnapshotDto() {
     }
@@ -42,5 +44,13 @@ public class GroupSettingsSnapshotDto {
 
     public void setAllowArbitraryMoneySettlements(Boolean allowArbitraryMoneySettlements) {
         this.allowArbitraryMoneySettlements = allowArbitraryMoneySettlements;
+    }
+
+    public GroupInvitePermission getInvitePermission() {
+        return invitePermission;
+    }
+
+    public void setInvitePermission(GroupInvitePermission invitePermission) {
+        this.invitePermission = invitePermission;
     }
 }

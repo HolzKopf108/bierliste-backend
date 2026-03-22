@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.bierliste.backend.model.Group;
+import com.bierliste.backend.model.GroupInvitePermission;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
@@ -131,14 +132,6 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
-    void joinGroupReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
-        mockMvc.perform(post("/api/v1/groups/1/join"))
-            .andExpect(status().isUnauthorized())
-            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
-    }
-
-    @Test
     void leaveGroupReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
         mockMvc.perform(post("/api/v1/groups/1/leave"))
             .andExpect(status().isUnauthorized())
@@ -174,7 +167,8 @@ class GroupControllerIntegrationTest {
                     "name", "Neue Einstellungen",
                     "pricePerStrich", 2.50,
                     "onlyWartsCanBookForOthers", false,
-                    "allowArbitraryMoneySettlements", true
+                    "allowArbitraryMoneySettlements", true,
+                    "invitePermission", "ALL_MEMBERS"
                 ))))
             .andExpect(status().isUnauthorized())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -239,6 +233,7 @@ class GroupControllerIntegrationTest {
         group.setPricePerStrich(new BigDecimal("2.50"));
         group.setOnlyWartsCanBookForOthers(false);
         group.setAllowArbitraryMoneySettlements(true);
+        group.setInvitePermission(GroupInvitePermission.ALL_MEMBERS);
         groupRepository.save(group);
 
         createMembership(group, admin, GroupRole.ADMIN);
@@ -253,7 +248,8 @@ class GroupControllerIntegrationTest {
             .andExpect(jsonPath("$.name").value("Settings Gruppe"))
             .andExpect(jsonPath("$.pricePerStrich").value(2.5))
             .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false))
-            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(true));
+            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(true))
+            .andExpect(jsonPath("$.invitePermission").value("ALL_MEMBERS"));
     }
 
     @Test
@@ -706,63 +702,6 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
-    void joinGroupCreatesMembership() throws Exception {
-        User joiningUser = createUser("join-user@example.com", "JoinUser");
-        User creator = createUser("join-creator@example.com", "Creator");
-        Group group = createGroup("Join Gruppe", creator);
-
-        String token = jwtTokenProvider.createAccessToken(joiningUser);
-
-        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/join")
-                .header("Authorization", "Bearer " + token))
-            .andExpect(status().isOk())
-            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.message").value("Mitgliedschaft aktiv"));
-
-        var membership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), joiningUser.getId()).orElseThrow();
-        assertThat(membership.getRole()).isEqualTo(GroupRole.MEMBER);
-        assertThat(membership.getStrichCount()).isZero();
-    }
-
-    @Test
-    void joinGroupIsIdempotentForExistingMembership() throws Exception {
-        User joiningUser = createUser("join-idempotent@example.com", "Idempotent");
-        User creator = createUser("join-owner@example.com", "Owner");
-        Group group = createGroup("Join Idempotent", creator);
-
-        String token = jwtTokenProvider.createAccessToken(joiningUser);
-
-        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/join")
-                .header("Authorization", "Bearer " + token))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.message").value("Mitgliedschaft aktiv"));
-
-        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/join")
-                .header("Authorization", "Bearer " + token))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.message").value("Mitgliedschaft aktiv"));
-
-        long memberCountForUser = groupMemberRepository.findAllByGroup_Id(group.getId())
-            .stream()
-            .filter(member -> member.getUser().getId().equals(joiningUser.getId()))
-            .count();
-
-        assertThat(memberCountForUser).isEqualTo(1);
-    }
-
-    @Test
-    void joinGroupReturnsNotFoundWhenGroupDoesNotExist() throws Exception {
-        User joiningUser = createUser("join-missing@example.com", "MissingGroup");
-        String token = jwtTokenProvider.createAccessToken(joiningUser);
-
-        mockMvc.perform(post("/api/v1/groups/999999/join")
-                .header("Authorization", "Bearer " + token))
-            .andExpect(status().isNotFound())
-            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
-    }
-
-    @Test
     void leaveGroupRemovesMembership() throws Exception {
         User leavingUser = createUser("leave-user@example.com", "LeavingUser");
         User creator = createUser("leave-creator@example.com", "LeaveCreator");
@@ -1076,6 +1015,7 @@ class GroupControllerIntegrationTest {
         assertThat(persistedGroup.getPricePerStrich()).isEqualByComparingTo("1.00");
         assertThat(persistedGroup.isOnlyWartsCanBookForOthers()).isTrue();
         assertThat(persistedGroup.isAllowArbitraryMoneySettlements()).isFalse();
+        assertThat(persistedGroup.getInvitePermission()).isEqualTo(GroupInvitePermission.ONLY_WARTS);
         assertThat(membership.getRole()).isEqualTo(GroupRole.ADMIN);
         assertThat(membership.getStrichCount()).isZero();
     }
@@ -1095,14 +1035,16 @@ class GroupControllerIntegrationTest {
                     "name", "Neue Gruppe Konfiguration",
                     "pricePerStrich", 2.75,
                     "onlyWartsCanBookForOthers", false,
-                    "allowArbitraryMoneySettlements", true
+                    "allowArbitraryMoneySettlements", true,
+                    "invitePermission", "ALL_MEMBERS"
                 ))))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.name").value("Neue Gruppe Konfiguration"))
             .andExpect(jsonPath("$.pricePerStrich").value(2.75))
             .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(false))
-            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(true));
+            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(true))
+            .andExpect(jsonPath("$.invitePermission").value("ALL_MEMBERS"));
 
         Group updatedGroup = groupRepository.findById(group.getId()).orElseThrow();
         assertThat(updatedGroup.getName()).isEqualTo("Neue Gruppe Konfiguration");
@@ -1110,6 +1052,7 @@ class GroupControllerIntegrationTest {
         assertThat(updatedGroup.getPricePerStrich()).isEqualByComparingTo("2.75");
         assertThat(updatedGroup.isOnlyWartsCanBookForOthers()).isFalse();
         assertThat(updatedGroup.isAllowArbitraryMoneySettlements()).isTrue();
+        assertThat(updatedGroup.getInvitePermission()).isEqualTo(GroupInvitePermission.ALL_MEMBERS);
     }
 
     @Test
@@ -1127,17 +1070,20 @@ class GroupControllerIntegrationTest {
                     "name", "Nullpreis Gruppe",
                     "pricePerStrich", 0.00,
                     "onlyWartsCanBookForOthers", true,
-                    "allowArbitraryMoneySettlements", false
+                    "allowArbitraryMoneySettlements", false,
+                    "invitePermission", "ONLY_WARTS"
                 ))))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.pricePerStrich").value(0))
             .andExpect(jsonPath("$.onlyWartsCanBookForOthers").value(true))
-            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(false));
+            .andExpect(jsonPath("$.allowArbitraryMoneySettlements").value(false))
+            .andExpect(jsonPath("$.invitePermission").value("ONLY_WARTS"));
 
         Group updatedGroup = groupRepository.findById(group.getId()).orElseThrow();
         assertThat(updatedGroup.getPricePerStrich()).isEqualByComparingTo("0.00");
         assertThat(updatedGroup.isAllowArbitraryMoneySettlements()).isFalse();
+        assertThat(updatedGroup.getInvitePermission()).isEqualTo(GroupInvitePermission.ONLY_WARTS);
     }
 
     @Test
@@ -1157,7 +1103,8 @@ class GroupControllerIntegrationTest {
                     "name", "Verbotene Aenderung",
                     "pricePerStrich", 3.10,
                     "onlyWartsCanBookForOthers", false,
-                    "allowArbitraryMoneySettlements", true
+                    "allowArbitraryMoneySettlements", true,
+                    "invitePermission", "ALL_MEMBERS"
                 ))))
             .andExpect(status().isForbidden())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -1185,7 +1132,8 @@ class GroupControllerIntegrationTest {
                     "name", "Verdeckte Aenderung",
                     "pricePerStrich", 4.20,
                     "onlyWartsCanBookForOthers", false,
-                    "allowArbitraryMoneySettlements", true
+                    "allowArbitraryMoneySettlements", true,
+                    "invitePermission", "ALL_MEMBERS"
                 ))))
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -1207,7 +1155,8 @@ class GroupControllerIntegrationTest {
                     "name", "Negative Preis Gruppe",
                     "pricePerStrich", -0.01,
                     "onlyWartsCanBookForOthers", true,
-                    "allowArbitraryMoneySettlements", false
+                    "allowArbitraryMoneySettlements", false,
+                    "invitePermission", "ONLY_WARTS"
                 ))))
             .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -1229,7 +1178,8 @@ class GroupControllerIntegrationTest {
                     "name", " ",
                     "pricePerStrich", 1.50,
                     "onlyWartsCanBookForOthers", true,
-                    "allowArbitraryMoneySettlements", false
+                    "allowArbitraryMoneySettlements", false,
+                    "invitePermission", "ONLY_WARTS"
                 ))))
             .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
