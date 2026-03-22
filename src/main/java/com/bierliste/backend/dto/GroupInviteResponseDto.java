@@ -8,6 +8,10 @@ public class GroupInviteResponseDto {
 
     private Long inviteId;
     private String token;
+    @Schema(
+        description = "Custom-App-Link zum Beitreten in der mobilen App.",
+        example = "bierliste://join?token=abc123"
+    )
     private String joinUrl;
     private Instant expiresAt;
 

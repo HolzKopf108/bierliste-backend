@@ -55,7 +55,7 @@ class GroupInviteServiceIntegrationTest {
 
         assertThat(invite.getCreatedByUserId()).isEqualTo(admin.getId());
         assertThat(Duration.between(invite.getCreatedAt(), invite.getExpiresAt())).isEqualTo(Duration.ofDays(7));
-        assertThat(response.getJoinUrl()).isEqualTo("https://bierliste.test/invites/" + response.getToken());
+        assertThat(response.getJoinUrl()).isEqualTo("bierliste://join?token=" + response.getToken());
     }
 
     @Test

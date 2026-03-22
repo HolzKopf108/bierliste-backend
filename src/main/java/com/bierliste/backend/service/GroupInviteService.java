@@ -30,7 +30,7 @@ public class GroupInviteService {
     private final GroupAuthorizationService groupAuthorizationService;
     private final GroupInviteTokenService groupInviteTokenService;
     private final ActivityService activityService;
-    private final String inviteLinkBaseUrl;
+    private final String deepLinkScheme;
 
     public GroupInviteService(
         GroupInviteRepository groupInviteRepository,
@@ -38,14 +38,14 @@ public class GroupInviteService {
         GroupAuthorizationService groupAuthorizationService,
         GroupInviteTokenService groupInviteTokenService,
         ActivityService activityService,
-        @Value("${app.invite-link-base-url:https://bierliste.koelker-recke.de}") String inviteLinkBaseUrl
+        @Value("${app.deep-link-scheme:bierliste}") String deepLinkScheme
     ) {
         this.groupInviteRepository = groupInviteRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.groupAuthorizationService = groupAuthorizationService;
         this.groupInviteTokenService = groupInviteTokenService;
         this.activityService = activityService;
-        this.inviteLinkBaseUrl = inviteLinkBaseUrl;
+        this.deepLinkScheme = deepLinkScheme;
     }
 
     @Transactional
@@ -118,9 +118,12 @@ public class GroupInviteService {
     }
 
     private String buildJoinUrl(String token) {
-        return UriComponentsBuilder.fromUriString(inviteLinkBaseUrl)
-            .path("/invites/{token}")
-            .buildAndExpand(token)
+        return UriComponentsBuilder.newInstance()
+            .scheme(deepLinkScheme)
+            .host("join")
+            .queryParam("token", token)
+            .build()
+            .encode()
             .toUriString();
     }
 }

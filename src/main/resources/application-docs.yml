@@ -26,6 +26,7 @@ app:
     access-exp-ms: 3600000
     refresh-exp-ms: 15552000000
 
+  deep-link-scheme: bierliste
   verif-exp-minutes: 30
 
 google:

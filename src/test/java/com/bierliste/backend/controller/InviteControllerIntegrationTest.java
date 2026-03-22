@@ -95,7 +95,7 @@ class InviteControllerIntegrationTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.inviteId").isNumber())
             .andExpect(jsonPath("$.token").isString())
-            .andExpect(jsonPath("$.joinUrl").value(org.hamcrest.Matchers.startsWith("https://bierliste.test/invites/")))
+            .andExpect(jsonPath("$.joinUrl").value(org.hamcrest.Matchers.startsWith("bierliste://join?token=")))
             .andExpect(jsonPath("$.expiresAt").isNotEmpty())
             .andReturn();
 
@@ -107,7 +107,7 @@ class InviteControllerIntegrationTest {
         assertThat(invite.getGroupId()).isEqualTo(group.getId());
         assertThat(invite.getCreatedByUserId()).isEqualTo(admin.getId());
         assertThat(invite.getToken()).isEqualTo(createdToken);
-        assertThat(response.get("joinUrl").asText()).isEqualTo("https://bierliste.test/invites/" + createdToken);
+        assertThat(response.get("joinUrl").asText()).isEqualTo("bierliste://join?token=" + createdToken);
         assertThat(Duration.between(invite.getCreatedAt(), invite.getExpiresAt())).isEqualTo(Duration.ofDays(7));
     }
 
@@ -128,7 +128,7 @@ class InviteControllerIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.inviteId").isNumber())
-            .andExpect(jsonPath("$.joinUrl").value(org.hamcrest.Matchers.startsWith("https://bierliste.test/invites/")));
+            .andExpect(jsonPath("$.joinUrl").value(org.hamcrest.Matchers.startsWith("bierliste://join?token=")));
     }
 
     @Test
