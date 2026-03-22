@@ -11,12 +11,10 @@ import com.bierliste.backend.repository.GroupInviteRepository;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class GroupInviteService {
@@ -30,22 +28,19 @@ public class GroupInviteService {
     private final GroupAuthorizationService groupAuthorizationService;
     private final GroupInviteTokenService groupInviteTokenService;
     private final ActivityService activityService;
-    private final String deepLinkScheme;
 
     public GroupInviteService(
         GroupInviteRepository groupInviteRepository,
         GroupMemberRepository groupMemberRepository,
         GroupAuthorizationService groupAuthorizationService,
         GroupInviteTokenService groupInviteTokenService,
-        ActivityService activityService,
-        @Value("${app.deep-link-scheme:bierliste}") String deepLinkScheme
+        ActivityService activityService
     ) {
         this.groupInviteRepository = groupInviteRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.groupAuthorizationService = groupAuthorizationService;
         this.groupInviteTokenService = groupInviteTokenService;
         this.activityService = activityService;
-        this.deepLinkScheme = deepLinkScheme;
     }
 
     @Transactional
@@ -56,7 +51,6 @@ public class GroupInviteService {
         return new GroupInviteResponseDto(
             invite.getId(),
             invite.getToken(),
-            buildJoinUrl(invite.getToken()),
             invite.getExpiresAt()
         );
     }
@@ -115,15 +109,5 @@ public class GroupInviteService {
         }
 
         throw new IllegalStateException("Invite-Token konnte nicht erzeugt werden");
-    }
-
-    private String buildJoinUrl(String token) {
-        return UriComponentsBuilder.newInstance()
-            .scheme(deepLinkScheme)
-            .host("join")
-            .queryParam("token", token)
-            .build()
-            .encode()
-            .toUriString();
     }
 }

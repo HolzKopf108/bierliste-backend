@@ -1,7 +1,9 @@
 package com.bierliste.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -95,7 +97,7 @@ class InviteControllerIntegrationTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.inviteId").isNumber())
             .andExpect(jsonPath("$.token").isString())
-            .andExpect(jsonPath("$.joinUrl").value(org.hamcrest.Matchers.startsWith("bierliste://join?token=")))
+            .andExpect(jsonPath("$.joinUrl").doesNotExist())
             .andExpect(jsonPath("$.expiresAt").isNotEmpty())
             .andReturn();
 
@@ -107,7 +109,7 @@ class InviteControllerIntegrationTest {
         assertThat(invite.getGroupId()).isEqualTo(group.getId());
         assertThat(invite.getCreatedByUserId()).isEqualTo(admin.getId());
         assertThat(invite.getToken()).isEqualTo(createdToken);
-        assertThat(response.get("joinUrl").asText()).isEqualTo("bierliste://join?token=" + createdToken);
+        assertThat(response.has("joinUrl")).isFalse();
         assertThat(Duration.between(invite.getCreatedAt(), invite.getExpiresAt())).isEqualTo(Duration.ofDays(7));
     }
 
@@ -128,7 +130,18 @@ class InviteControllerIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.inviteId").isNumber())
-            .andExpect(jsonPath("$.joinUrl").value(org.hamcrest.Matchers.startsWith("bierliste://join?token=")));
+            .andExpect(jsonPath("$.token").isString())
+            .andExpect(jsonPath("$.joinUrl").doesNotExist());
+    }
+
+    @Test
+    void inviteLandingPageReturnsHtmlWithDeepLinkAndButton() throws Exception {
+        mockMvc.perform(get("/invites/landing-token"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+            .andExpect(content().string(containsString("bierliste://join?token=landing-token")))
+            .andExpect(content().string(containsString("App öffnen")))
+            .andExpect(content().string(containsString("window.location.replace('")));
     }
 
     @Test
