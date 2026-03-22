@@ -10,18 +10,19 @@ import org.springframework.data.repository.query.Param;
 
 public interface GroupActivityRepository extends JpaRepository<GroupActivity, Long> {
 
+    List<GroupActivity> findByGroupIdOrderByTimestampDescIdDesc(Long groupId, Pageable pageable);
+
     @Query("""
         select ga
         from GroupActivity ga
         where ga.groupId = :groupId
           and (
-              :cursorTimestamp is null
-              or ga.timestamp < :cursorTimestamp
+              ga.timestamp < :cursorTimestamp
               or (ga.timestamp = :cursorTimestamp and ga.id < :cursorId)
           )
         order by ga.timestamp desc, ga.id desc
         """)
-    List<GroupActivity> findPageByGroupId(
+    List<GroupActivity> findPageByGroupIdBeforeCursor(
         @Param("groupId") Long groupId,
         @Param("cursorTimestamp") Instant cursorTimestamp,
         @Param("cursorId") Long cursorId,

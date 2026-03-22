@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import org.hibernate.annotations.Check;
 import org.hibernate.annotations.ColumnDefault;
 
 @Entity
@@ -17,6 +18,7 @@ import org.hibernate.annotations.ColumnDefault;
         @Index(name = "idx_groups_created_by", columnList = "created_by_user_id")
     }
 )
+@Check(constraints = "price_per_strich >= 0")
 public class Group {
 
     public static final BigDecimal DEFAULT_PRICE_PER_STRICH = new BigDecimal("1.00");
@@ -28,15 +30,18 @@ public class Group {
     @Column(nullable = false, length = 120)
     private String name;
 
+    @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
     @NotNull
     @DecimalMin(value = "0.00")
     @Digits(integer = 8, fraction = 2)
+    @ColumnDefault("1.00")
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal pricePerStrich = DEFAULT_PRICE_PER_STRICH;
 
+    @ColumnDefault("true")
     @Column(nullable = false)
     private boolean onlyWartsCanBookForOthers = true;
 

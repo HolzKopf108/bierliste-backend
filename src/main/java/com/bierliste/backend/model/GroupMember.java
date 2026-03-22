@@ -17,7 +17,7 @@ import org.hibernate.annotations.ColumnDefault;
         @Index(name = "idx_group_members_user", columnList = "user_id")
     }
 )
-@Check(constraints = "strich_count >= 0")
+@Check(constraints = "strich_count >= 0 and role in ('MEMBER', 'ADMIN')")
 public class GroupMember {
 
     @Id
@@ -37,6 +37,7 @@ public class GroupMember {
     @Column(nullable = false, length = 30)
     private GroupRole role = GroupRole.MEMBER;
 
+    @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(nullable = false, updatable = false)
     private Instant joinedAt = Instant.now();
 

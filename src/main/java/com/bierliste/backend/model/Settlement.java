@@ -17,6 +17,7 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.hibernate.annotations.Check;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Table(
@@ -73,6 +74,7 @@ public class Settlement {
     @Column(name = "striche_amount")
     private Integer stricheAmount;
 
+    @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 

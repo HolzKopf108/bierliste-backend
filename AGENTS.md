@@ -65,6 +65,10 @@ Arbeite so, dass bestehende Architektur, Namenskonventionen und Patterns des Rep
   - Validation: `Map<String, String>`
   - Statusfehler: `{ "error": "..." }`
 - Bestehende User- und Auth-Patterns zuerst prüfen und wiederverwenden
+- Datenbankschema gehört primär in die Java-/JPA-Definitionen:
+  - Tabellen, Spalten, Indizes, Defaults und Constraints nach Möglichkeit über Entity-Mapping und passende Hibernate-/JPA-Annotationen modellieren
+  - `schema.sql` nicht für reguläre Schema-Erstellung oder Schema-Pflege verwenden, sondern nur für Migrationen bestehender Datenbestände
+  - `schema.sql` sollte leer bleiben, wenn keine Datenmigration für bereits existierende Datensätze nötig ist
 - Bei neuen Features zuerst prüfen, wie ähnliche Features bereits im Repo umgesetzt sind
 - Wenn ein GitHub-Issue umgesetzt wird:
   - Akzeptanzkriterien vollständig abarbeiten

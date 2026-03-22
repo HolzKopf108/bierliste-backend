@@ -163,13 +163,16 @@ public class ActivityService {
 
         int resolvedLimit = resolveLimit(limit);
         ActivityCursor activityCursor = decodeCursor(cursor);
+        PageRequest pageRequest = PageRequest.of(0, resolvedLimit + 1);
 
-        List<GroupActivity> activities = groupActivityRepository.findPageByGroupId(
-            groupId,
-            activityCursor.timestamp(),
-            activityCursor.id(),
-            PageRequest.of(0, resolvedLimit + 1)
-        );
+        List<GroupActivity> activities = activityCursor.hasCursor()
+            ? groupActivityRepository.findPageByGroupIdBeforeCursor(
+                groupId,
+                activityCursor.timestamp(),
+                activityCursor.id(),
+                pageRequest
+            )
+            : groupActivityRepository.findByGroupIdOrderByTimestampDescIdDesc(groupId, pageRequest);
 
         boolean hasMore = activities.size() > resolvedLimit;
         List<GroupActivity> pageItems = hasMore ? activities.subList(0, resolvedLimit) : activities;
@@ -215,7 +218,7 @@ public class ActivityService {
 
     private ActivityCursor decodeCursor(String cursor) {
         if (cursor == null || cursor.isBlank()) {
-            return new ActivityCursor(null, Long.MAX_VALUE);
+            return new ActivityCursor(null, null);
         }
 
         try {
@@ -473,5 +476,9 @@ public class ActivityService {
     }
 
     private record ActivityCursor(Instant timestamp, Long id) {
+
+        private boolean hasCursor() {
+            return timestamp != null && id != null;
+        }
     }
 }

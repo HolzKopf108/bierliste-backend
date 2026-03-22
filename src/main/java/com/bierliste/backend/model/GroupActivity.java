@@ -9,7 +9,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -19,6 +18,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.hibernate.annotations.Check;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Table(
@@ -52,6 +52,7 @@ public class GroupActivity {
     private Long groupId;
 
     @NotNull
+    @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "activity_timestamp", nullable = false, updatable = false)
     private Instant timestamp = Instant.now();
 
@@ -77,13 +78,14 @@ public class GroupActivity {
     private ActivityType type;
 
     @Min(1)
+    @ColumnDefault("1")
     @Column(name = "meta_version", nullable = false)
     private int metaVersion = 1;
 
     @NotNull
-    @Lob
+    @ColumnDefault("'{}'")
     @Convert(converter = JsonMapConverter.class)
-    @Column(name = "meta_json", nullable = false)
+    @Column(name = "meta_json", nullable = false, columnDefinition = "TEXT")
     private Map<String, Object> meta = new LinkedHashMap<>();
 
     public Long getId() {
