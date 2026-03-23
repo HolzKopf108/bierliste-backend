@@ -52,7 +52,7 @@ public class GroupAuthorizationService {
 
     public GroupMember requireMemberEntity(Long groupId, User user) {
         Long userId = requireAuthenticatedUserId(user);
-        return groupMemberRepository.findByGroup_IdAndUser_Id(groupId, userId)
+        return groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrue(groupId, userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, GROUP_NOT_FOUND_MESSAGE));
     }
 
@@ -77,7 +77,7 @@ public class GroupAuthorizationService {
     }
 
     public boolean isMember(Long groupId, Long userId) {
-        return groupMemberRepository.existsByGroup_IdAndUser_Id(groupId, userId);
+        return groupMemberRepository.existsByGroup_IdAndUser_IdAndActiveTrue(groupId, userId);
     }
 
     public boolean isWart(Long groupId, User user) {
@@ -85,6 +85,6 @@ public class GroupAuthorizationService {
     }
 
     public boolean isWart(Long groupId, Long userId) {
-        return groupMemberRepository.existsByGroup_IdAndUser_IdAndRole(groupId, userId, GroupRole.ADMIN);
+        return groupMemberRepository.existsByGroup_IdAndUser_IdAndRoleAndActiveTrue(groupId, userId, GroupRole.ADMIN);
     }
 }

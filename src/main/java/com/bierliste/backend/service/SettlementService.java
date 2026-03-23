@@ -69,8 +69,8 @@ public class SettlementService {
 
             activityService.logMoneyDeducted(
                 groupId,
-                actor,
-                targetMembership.getUser(),
+                ActivityUserRef.from(actor),
+                ActivityUserRef.from(targetMembership.getUser()),
                 calculation.appliedAmount(),
                 pricePerStrich
             );
@@ -97,7 +97,12 @@ public class SettlementService {
             settlement.setStricheAmount(appliedStricheAmount);
             settlementRepository.save(settlement);
 
-            activityService.logStricheDeducted(groupId, actor, targetMembership.getUser(), appliedStricheAmount);
+            activityService.logStricheDeducted(
+                groupId,
+                ActivityUserRef.from(actor),
+                ActivityUserRef.from(targetMembership.getUser()),
+                appliedStricheAmount
+            );
         }
 
         int newStrichCount = targetMembership.getStrichCount() - appliedStricheAmount;
@@ -121,7 +126,7 @@ public class SettlementService {
     }
 
     private GroupMember requireTargetMembership(Long groupId, Long targetUserId) {
-        return groupMemberRepository.findByGroup_IdAndUser_Id(groupId, targetUserId)
+        return groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrue(groupId, targetUserId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, TARGET_NOT_FOUND_MESSAGE));
     }
 

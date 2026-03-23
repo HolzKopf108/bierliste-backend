@@ -19,6 +19,7 @@ import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -94,7 +95,7 @@ public class GroupService {
     public List<GroupMemberDto> getGroupMembersForUser(Long groupId, User user) {
         groupAuthorizationService.requireMember(groupId, user);
 
-        return groupMemberRepository.findMemberDtosByGroupId(groupId);
+        return groupMemberRepository.findActiveMemberDtosByGroupId(groupId);
     }
 
     public int getOwnCounterForGroup(Long groupId, User user) {
@@ -145,7 +146,7 @@ public class GroupService {
         if (!changedFields.isEmpty()) {
             activityService.logGroupSettingsChanged(
                 groupId,
-                user,
+                ActivityUserRef.from(user),
                 changedFields,
                 oldValues,
                 newValues
@@ -159,13 +160,14 @@ public class GroupService {
     public int incrementOwnCounterForGroup(Long groupId, CounterIncrementDto dto, User user) {
         Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
         groupAuthorizationService.requireMemberEntity(groupId, user);
+        ActivityUserRef userRef = ActivityUserRef.from(user);
 
-        groupMemberRepository.incrementStrichCount(groupId, userId, dto.getAmount());
+        groupMemberRepository.incrementActiveStrichCount(groupId, userId, dto.getAmount());
 
-        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(groupId, userId)
+        int updatedCount = groupMemberRepository.findActiveStrichCountByGroup_IdAndUser_Id(groupId, userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
 
-        activityService.logStrichIncremented(groupId, user, user, dto.getAmount());
+        activityService.logStrichIncremented(groupId, userRef, userRef, dto.getAmount());
 
         return updatedCount;
     }
@@ -174,22 +176,20 @@ public class GroupService {
     public int incrementMemberCounterForGroup(Long groupId, Long targetUserId, CounterIncrementDto dto, User user) {
         GroupMember actorMembership = groupAuthorizationService.requireMemberEntity(groupId, user);
         GroupMember targetMembership = requireTargetMembership(groupId, targetUserId);
-        User actorUser = actorMembership.getUser();
-        User targetUser = targetMembership.getUser();
-        actorUser.getUsername();
-        targetUser.getUsername();
+        ActivityUserRef actorUserRef = ActivityUserRef.from(actorMembership.getUser());
+        ActivityUserRef targetUserRef = ActivityUserRef.from(targetMembership.getUser());
 
         requireCounterIncrementPermission(actorMembership, targetMembership);
 
-        groupMemberRepository.incrementStrichCount(groupId, targetUserId, dto.getAmount());
+        groupMemberRepository.incrementActiveStrichCount(groupId, targetUserId, dto.getAmount());
 
-        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(groupId, targetUserId)
+        int updatedCount = groupMemberRepository.findActiveStrichCountByGroup_IdAndUser_Id(groupId, targetUserId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
 
         activityService.logStrichIncremented(
             groupId,
-            actorUser,
-            targetUser,
+            actorUserRef,
+            targetUserRef,
             dto.getAmount()
         );
 
@@ -199,8 +199,28 @@ public class GroupService {
     @Transactional
     public void leaveGroup(Long groupId, User user) {
         GroupMember membership = groupAuthorizationService.requireMemberEntity(groupId, user);
-        activityService.logUserLeftGroup(groupId, membership.getUser());
-        removeMembershipAndCleanupGroup(membership);
+        ActivityUserRef leavingUserRef = ActivityUserRef.from(membership.getUser());
+
+        deactivateMembershipAndCleanupGroup(membership);
+        activityService.logUserLeftGroup(groupId, leavingUserRef);
+    }
+
+    @Transactional
+    public void removeGroupMember(Long groupId, Long targetUserId, User user) {
+        groupAuthorizationService.requireWart(groupId, user);
+
+        Long actorUserId = groupAuthorizationService.requireAuthenticatedUserId(user);
+        if (actorUserId.equals(targetUserId)) {
+            leaveGroup(groupId, user);
+            return;
+        }
+
+        GroupMember targetMembership = requireTargetMembership(groupId, targetUserId);
+        ActivityUserRef actorUserRef = ActivityUserRef.from(user);
+        ActivityUserRef targetUserRef = ActivityUserRef.from(targetMembership.getUser());
+
+        deactivateMembershipAndCleanupGroup(targetMembership);
+        activityService.logUserRemovedFromGroup(groupId, actorUserRef, targetUserRef);
     }
 
     @Transactional
@@ -214,8 +234,8 @@ public class GroupService {
             targetMembership.setRole(GroupRole.ADMIN);
             activityService.logRoleGrantedWart(
                 groupId,
-                user,
-                targetMembership.getUser(),
+                ActivityUserRef.from(user),
+                ActivityUserRef.from(targetMembership.getUser()),
                 previousRole,
                 targetMembership.getRole()
             );
@@ -232,7 +252,7 @@ public class GroupService {
         GroupRole previousRole = targetMembership.getRole();
 
         if (targetMembership.getRole() == GroupRole.ADMIN
-            && groupMemberRepository.countByGroup_IdAndRole(groupId, GroupRole.ADMIN) <= 1) {
+            && groupMemberRepository.countByGroup_IdAndRoleAndActiveTrue(groupId, GroupRole.ADMIN) <= 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Mindestens ein Wart muss in der Gruppe verbleiben");
         }
 
@@ -240,8 +260,8 @@ public class GroupService {
             targetMembership.setRole(GroupRole.MEMBER);
             activityService.logRoleRevokedWart(
                 groupId,
-                user,
-                targetMembership.getUser(),
+                ActivityUserRef.from(user),
+                ActivityUserRef.from(targetMembership.getUser()),
                 previousRole,
                 targetMembership.getRole()
             );
@@ -253,29 +273,33 @@ public class GroupService {
     @Transactional
     public void removeUserFromAllGroups(User user) {
         Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
-        List<GroupMember> memberships = groupMemberRepository.findAllByUser_Id(userId);
+        ActivityUserRef userRef = ActivityUserRef.from(user);
+        List<GroupMember> memberships = groupMemberRepository.findAllByUser_IdAndActiveTrue(userId);
         for (GroupMember membership : memberships) {
-            activityService.logUserLeftGroup(membership.getGroup().getId(), membership.getUser());
-            removeMembershipAndCleanupGroup(membership);
+            deactivateMembershipAndCleanupGroup(membership);
+            activityService.logUserLeftGroup(membership.getGroup().getId(), userRef);
         }
     }
 
-    private void removeMembershipAndCleanupGroup(GroupMember membership) {
+    private void deactivateMembershipAndCleanupGroup(GroupMember membership) {
         Long groupId = membership.getGroup().getId();
         Group group = membership.getGroup();
         boolean wasAdmin = membership.getRole() == GroupRole.ADMIN;
 
-        groupMemberRepository.delete(membership);
+        membership.setActive(false);
+        membership.setLeftAt(Instant.now());
         groupMemberRepository.flush();
 
-        if (!groupMemberRepository.existsByGroup_Id(groupId)) {
+        if (!groupMemberRepository.existsByGroup_IdAndActiveTrue(groupId)) {
+            groupMemberRepository.delete(membership);
+            groupMemberRepository.flush();
             groupInviteRepository.deleteAllByGroup_Id(groupId);
             groupRepository.delete(group);
             return;
         }
 
-        if (wasAdmin && !groupMemberRepository.existsByGroup_IdAndRole(groupId, GroupRole.ADMIN)) {
-            GroupMember newAdmin = groupMemberRepository.findFirstByGroup_IdOrderByJoinedAtAscIdAsc(groupId)
+        if (wasAdmin && !groupMemberRepository.existsByGroup_IdAndRoleAndActiveTrue(groupId, GroupRole.ADMIN)) {
+            GroupMember newAdmin = groupMemberRepository.findFirstByGroup_IdAndActiveTrueOrderByJoinedAtAscIdAsc(groupId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Admin konnte nicht neu zugewiesen werden"));
             newAdmin.setRole(GroupRole.ADMIN);
         }
@@ -300,7 +324,7 @@ public class GroupService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden");
         }
 
-        return groupMemberRepository.findByGroup_IdAndUser_Id(groupId, targetUserId)
+        return groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrue(groupId, targetUserId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
     }
 

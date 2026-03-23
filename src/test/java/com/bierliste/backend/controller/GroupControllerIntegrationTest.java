@@ -1,6 +1,7 @@
 package com.bierliste.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -134,6 +135,14 @@ class GroupControllerIntegrationTest {
     @Test
     void leaveGroupReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
         mockMvc.perform(post("/api/v1/groups/1/leave"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
+    void removeGroupMemberReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(delete("/api/v1/groups/1/members/2"))
             .andExpect(status().isUnauthorized())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
@@ -702,11 +711,12 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
-    void leaveGroupRemovesMembership() throws Exception {
+    void leaveGroupSoftDeletesMembership() throws Exception {
         User leavingUser = createUser("leave-user@example.com", "LeavingUser");
         User creator = createUser("leave-creator@example.com", "LeaveCreator");
         Group group = createGroup("Leave Gruppe", creator);
 
+        createMembership(group, creator, GroupRole.ADMIN);
         createMembership(group, leavingUser, GroupRole.MEMBER);
 
         String token = jwtTokenProvider.createAccessToken(leavingUser);
@@ -717,7 +727,10 @@ class GroupControllerIntegrationTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.message").value("Gruppe verlassen"));
 
-        assertThat(groupMemberRepository.existsByGroup_IdAndUser_Id(group.getId(), leavingUser.getId())).isFalse();
+        GroupMember inactiveMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), leavingUser.getId()).orElseThrow();
+        assertThat(inactiveMembership.isActive()).isFalse();
+        assertThat(inactiveMembership.getLeftAt()).isNotNull();
+        assertThat(groupMemberRepository.existsByGroup_IdAndUser_IdAndActiveTrue(group.getId(), leavingUser.getId())).isFalse();
     }
 
     @Test
@@ -735,6 +748,129 @@ class GroupControllerIntegrationTest {
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void getGroupMembersReturnsOnlyActiveMembers() throws Exception {
+        User admin = createUser("members-active-admin@example.com", "Admin");
+        User activeMember = createUser("members-active-user@example.com", "Active");
+        User inactiveMember = createUser("members-inactive-user@example.com", "Inactive");
+        Group group = createGroup("Aktive Mitglieder", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, activeMember, GroupRole.MEMBER);
+        GroupMember inactiveMembership = createMembership(group, inactiveMember, GroupRole.MEMBER);
+        inactiveMembership.setActive(false);
+        inactiveMembership.setLeftAt(java.time.Instant.now());
+        groupMemberRepository.save(inactiveMembership);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].userId").value(activeMember.getId()))
+            .andExpect(jsonPath("$[1].userId").value(admin.getId()));
+    }
+
+    @Test
+    void removeGroupMemberSoftDeletesTargetMembership() throws Exception {
+        User admin = createUser("remove-admin@example.com", "RemoveAdmin");
+        User target = createUser("remove-target@example.com", "RemoveTarget");
+        Group group = createGroup("Remove Gruppe", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        GroupMember targetMembership = createMembership(group, target, GroupRole.MEMBER);
+        targetMembership.setStrichCount(6);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(delete("/api/v1/groups/" + group.getId() + "/members/" + target.getId())
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNoContent());
+
+        GroupMember inactiveMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(inactiveMembership.isActive()).isFalse();
+        assertThat(inactiveMembership.getLeftAt()).isNotNull();
+        assertThat(inactiveMembership.getStrichCount()).isEqualTo(6);
+    }
+
+    @Test
+    void removeGroupMemberReturnsForbiddenWhenCallerIsNotAdmin() throws Exception {
+        User admin = createUser("remove-rights-admin@example.com", "Admin");
+        User caller = createUser("remove-rights-member@example.com", "Caller");
+        User target = createUser("remove-rights-target@example.com", "Target");
+        Group group = createGroup("Remove Rechte", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, caller, GroupRole.MEMBER);
+        createMembership(group, target, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(caller);
+
+        mockMvc.perform(delete("/api/v1/groups/" + group.getId() + "/members/" + target.getId())
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Wart-Rechte erforderlich"));
+
+        GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(targetMembership.isActive()).isTrue();
+    }
+
+    @Test
+    void removeGroupMemberReturnsNotFoundWhenTargetIsNotMember() throws Exception {
+        User admin = createUser("remove-missing-admin@example.com", "Admin");
+        User outsider = createUser("remove-missing-outsider@example.com", "Outsider");
+        Group group = createGroup("Remove Missing", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(delete("/api/v1/groups/" + group.getId() + "/members/" + outsider.getId())
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppenmitglied nicht gefunden"));
+    }
+
+    @Test
+    void removeGroupMemberReturnsNotFoundWhenGroupDoesNotExist() throws Exception {
+        User admin = createUser("remove-missing-group-admin@example.com", "Admin");
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(delete("/api/v1/groups/999999/members/" + admin.getId())
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Gruppe nicht gefunden"));
+    }
+
+    @Test
+    void removeGroupMemberTreatsSelfRemovalAsLeaveAndPromotesNextMember() throws Exception {
+        User admin = createUser("remove-self-admin@example.com", "RemoveSelfAdmin");
+        User member = createUser("remove-self-member@example.com", "RemoveSelfMember");
+        Group group = createGroup("Remove Self", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(delete("/api/v1/groups/" + group.getId() + "/members/" + admin.getId())
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNoContent());
+
+        GroupMember inactiveAdminMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), admin.getId()).orElseThrow();
+        GroupMember promotedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), member.getId()).orElseThrow();
+
+        assertThat(inactiveAdminMembership.isActive()).isFalse();
+        assertThat(inactiveAdminMembership.getLeftAt()).isNotNull();
+        assertThat(promotedMembership.isActive()).isTrue();
+        assertThat(promotedMembership.getRole()).isEqualTo(GroupRole.ADMIN);
     }
 
     @Test

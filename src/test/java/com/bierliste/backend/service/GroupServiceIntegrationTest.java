@@ -151,13 +151,56 @@ class GroupServiceIntegrationTest {
         groupService.leaveGroup(group.getId(), admin);
 
         assertThat(groupRepository.findById(group.getId())).isPresent();
-        assertThat(groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), admin.getId())).isEmpty();
+        GroupMember inactiveAdminMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), admin.getId()).orElseThrow();
         GroupMember promotedMember = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), firstMember.getId()).orElseThrow();
         GroupMember unchangedMember = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), secondMember.getId()).orElseThrow();
 
+        assertThat(inactiveAdminMembership.isActive()).isFalse();
+        assertThat(inactiveAdminMembership.getLeftAt()).isNotNull();
         assertThat(promotedMember.getId()).isEqualTo(promotedCandidate.getId());
+        assertThat(promotedMember.isActive()).isTrue();
         assertThat(promotedMember.getRole()).isEqualTo(GroupRole.ADMIN);
+        assertThat(unchangedMember.isActive()).isTrue();
         assertThat(unchangedMember.getRole()).isEqualTo(GroupRole.MEMBER);
+    }
+
+    @Test
+    void removeGroupMemberSoftDeletesTargetMembership() {
+        User admin = createUser("service-remove-admin@example.com", "RemoveAdmin");
+        User target = createUser("service-remove-target@example.com", "RemoveTarget");
+        Group group = createGroup("Service Remove", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+        GroupMember targetMembership = createMembership(group, target, GroupRole.MEMBER);
+        targetMembership.setStrichCount(4);
+
+        groupService.removeGroupMember(group.getId(), target.getId(), admin);
+
+        GroupMember persistedTarget = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(persistedTarget.isActive()).isFalse();
+        assertThat(persistedTarget.getLeftAt()).isNotNull();
+        assertThat(persistedTarget.getStrichCount()).isEqualTo(4);
+        assertThat(groupService.getGroupMembersForUser(group.getId(), admin))
+            .extracting(GroupMemberDto::getUserId)
+            .containsExactly(admin.getId());
+    }
+
+    @Test
+    void removeGroupMemberTreatsSelfRemovalAsLeaveAndPromotesNextMember() {
+        User admin = createUser("service-remove-self-admin@example.com", "RemoveSelfAdmin");
+        User member = createUser("service-remove-self-member@example.com", "RemoveSelfMember");
+        Group group = createGroup("Service Remove Self", admin);
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+
+        groupService.removeGroupMember(group.getId(), admin.getId(), admin);
+
+        GroupMember inactiveAdminMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), admin.getId()).orElseThrow();
+        GroupMember promotedMember = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), member.getId()).orElseThrow();
+
+        assertThat(inactiveAdminMembership.isActive()).isFalse();
+        assertThat(inactiveAdminMembership.getLeftAt()).isNotNull();
+        assertThat(promotedMember.isActive()).isTrue();
+        assertThat(promotedMember.getRole()).isEqualTo(GroupRole.ADMIN);
     }
 
     @Test
@@ -185,6 +228,24 @@ class GroupServiceIntegrationTest {
         assertThat(members.getFirst().getStrichCount()).isZero();
         assertThat(members.getLast().getUsername()).isEqualTo("Requester");
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+    }
+
+    @Test
+    void getGroupMembersForUserExcludesInactiveMemberships() {
+        User requester = createUser("inactive-list-requester@example.com", "Requester");
+        User activeMember = createUser("inactive-list-active@example.com", "Active");
+        User inactiveMember = createUser("inactive-list-inactive@example.com", "Inactive");
+        Group group = createGroup("Nur aktive Mitglieder", requester);
+        createMembership(group, requester, GroupRole.ADMIN);
+        createMembership(group, activeMember, GroupRole.MEMBER);
+        GroupMember inactiveMembership = createMembership(group, inactiveMember, GroupRole.MEMBER);
+        inactiveMembership.setActive(false);
+        inactiveMembership.setLeftAt(Instant.now());
+
+        List<GroupMemberDto> members = groupService.getGroupMembersForUser(group.getId(), requester);
+
+        assertThat(members).extracting(GroupMemberDto::getUserId)
+            .containsExactly(activeMember.getId(), requester.getId());
     }
 
     @Test

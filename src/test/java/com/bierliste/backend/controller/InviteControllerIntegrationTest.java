@@ -181,6 +181,7 @@ class InviteControllerIntegrationTest {
             .andExpect(jsonPath("$.name").value("Join per Invite"));
 
         GroupMember membership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), joiner.getId()).orElseThrow();
+        assertThat(membership.isActive()).isTrue();
         assertThat(membership.getRole()).isEqualTo(GroupRole.MEMBER);
 
         List<GroupActivity> activities = groupActivityRepository.findAllByGroupIdOrderByTimestampDescIdDesc(group.getId());
@@ -219,6 +220,36 @@ class InviteControllerIntegrationTest {
 
         assertThat(memberCount).isEqualTo(1);
         assertThat(activities).hasSize(1);
+    }
+
+    @Test
+    void joinByValidInviteReactivatesInactiveMembershipAsMember() throws Exception {
+        User admin = createUser("join-reactivate-admin@example.com", "Admin");
+        User joiner = createUser("join-reactivate-user@example.com", "Joiner");
+        Group group = createGroup("Join Reactivate", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        GroupMember inactiveMembership = createMembership(group, joiner, GroupRole.ADMIN);
+        inactiveMembership.setActive(false);
+        inactiveMembership.setLeftAt(Instant.now().minusSeconds(60));
+        groupMemberRepository.save(inactiveMembership);
+        GroupInvite invite = createInvite(group, admin, "reactivate-token", Instant.now().plus(Duration.ofDays(1)));
+
+        String token = jwtTokenProvider.createAccessToken(joiner);
+
+        mockMvc.perform(post("/api/v1/invites/" + invite.getToken() + "/join")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(group.getId()));
+
+        GroupMember reactivatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), joiner.getId()).orElseThrow();
+        List<GroupActivity> activities = groupActivityRepository.findAllByGroupIdOrderByTimestampDescIdDesc(group.getId());
+
+        assertThat(reactivatedMembership.isActive()).isTrue();
+        assertThat(reactivatedMembership.getLeftAt()).isNull();
+        assertThat(reactivatedMembership.getRole()).isEqualTo(GroupRole.MEMBER);
+        assertThat(activities).hasSize(1);
+        assertThat(activities.getFirst().getType()).isEqualTo(ActivityType.USER_JOINED_GROUP);
     }
 
     @Test

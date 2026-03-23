@@ -70,19 +70,24 @@ public class ActivityService {
             : userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
 
+        saveActivity(
+            groupId,
+            type,
+            ActivityUserRef.from(actor),
+            target != null ? ActivityUserRef.from(target) : null,
+            meta
+        );
+    }
+
+    public void log(Long groupId, ActivityType type, ActivityUserRef actor, ActivityUserRef target, Map<String, Object> meta) {
         saveActivity(groupId, type, actor, target, meta);
     }
 
-    @Transactional
-    public void log(Long groupId, ActivityType type, User actor, User target, Map<String, Object> meta) {
-        saveActivity(groupId, type, actor, target, meta);
-    }
-
-    public void logUserJoinedGroup(Long groupId, User user) {
+    public void logUserJoinedGroup(Long groupId, ActivityUserRef user) {
         logUserJoinedGroup(groupId, user, null);
     }
 
-    public void logUserJoinedGroup(Long groupId, User user, String via) {
+    public void logUserJoinedGroup(Long groupId, ActivityUserRef user, String via) {
         if (via == null || via.isBlank()) {
             log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of());
             return;
@@ -91,20 +96,33 @@ public class ActivityService {
         log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of("via", via));
     }
 
-    public void logUserLeftGroup(Long groupId, User user) {
+    public void logUserLeftGroup(Long groupId, ActivityUserRef user) {
         log(groupId, ActivityType.USER_LEFT_GROUP, user, user, Map.of());
     }
 
-    public void logStrichIncremented(Long groupId, User actor, User target, int amount) {
-        LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
-        meta.put("amount", amount);
-        meta.put("mode", requireUserId(actor).equals(requireUserId(target))
-            ? GroupActivityBookingMode.SELF.name()
-            : GroupActivityBookingMode.OTHER.name());
-        log(groupId, ActivityType.STRICH_INCREMENTED, actor, target, meta);
+    public void logUserRemovedFromGroup(Long groupId, ActivityUserRef actor, ActivityUserRef target) {
+        log(groupId, ActivityType.USER_REMOVED_FROM_GROUP, actor, target, Map.of());
     }
 
-    public void logMoneyDeducted(Long groupId, User actor, User target, BigDecimal amountMoney, BigDecimal pricePerStrich) {
+    public void logStrichIncremented(Long groupId, ActivityUserRef actor, ActivityUserRef target, int amount) {
+        LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
+        ActivityUserRef resolvedActor = requireUserRef(actor);
+        ActivityUserRef resolvedTarget = requireUserRef(target);
+
+        meta.put("amount", amount);
+        meta.put("mode", resolvedActor.userId().equals(resolvedTarget.userId())
+            ? GroupActivityBookingMode.SELF.name()
+            : GroupActivityBookingMode.OTHER.name());
+        log(groupId, ActivityType.STRICH_INCREMENTED, resolvedActor, resolvedTarget, meta);
+    }
+
+    public void logMoneyDeducted(
+        Long groupId,
+        ActivityUserRef actor,
+        ActivityUserRef target,
+        BigDecimal amountMoney,
+        BigDecimal pricePerStrich
+    ) {
         if (amountMoney == null || amountMoney.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
@@ -118,7 +136,7 @@ public class ActivityService {
         log(groupId, ActivityType.MONEY_DEDUCTED, actor, target, meta);
     }
 
-    public void logStricheDeducted(Long groupId, User actor, User target, int amountStriche) {
+    public void logStricheDeducted(Long groupId, ActivityUserRef actor, ActivityUserRef target, int amountStriche) {
         if (amountStriche <= 0) {
             return;
         }
@@ -128,7 +146,13 @@ public class ActivityService {
         log(groupId, ActivityType.STRICHE_DEDUCTED, actor, target, meta);
     }
 
-    public void logRoleGrantedWart(Long groupId, User actor, User target, GroupRole previousRole, GroupRole newRole) {
+    public void logRoleGrantedWart(
+        Long groupId,
+        ActivityUserRef actor,
+        ActivityUserRef target,
+        GroupRole previousRole,
+        GroupRole newRole
+    ) {
         if (previousRole == newRole) {
             return;
         }
@@ -139,7 +163,13 @@ public class ActivityService {
         log(groupId, ActivityType.ROLE_GRANTED_WART, actor, target, meta);
     }
 
-    public void logRoleRevokedWart(Long groupId, User actor, User target, GroupRole previousRole, GroupRole newRole) {
+    public void logRoleRevokedWart(
+        Long groupId,
+        ActivityUserRef actor,
+        ActivityUserRef target,
+        GroupRole previousRole,
+        GroupRole newRole
+    ) {
         if (previousRole == newRole) {
             return;
         }
@@ -152,7 +182,7 @@ public class ActivityService {
 
     public void logGroupSettingsChanged(
         Long groupId,
-        User actor,
+        ActivityUserRef actor,
         List<String> changedFields,
         Map<String, Object> oldValues,
         Map<String, Object> newValues
@@ -194,24 +224,31 @@ public class ActivityService {
         );
     }
 
-    private void saveActivity(Long groupId, ActivityType type, User actor, User target, Map<String, Object> meta) {
+    private void saveActivity(
+        Long groupId,
+        ActivityType type,
+        ActivityUserRef actor,
+        ActivityUserRef target,
+        Map<String, Object> meta
+    ) {
+        ActivityUserRef resolvedActor = requireUserRef(actor);
         GroupActivity activity = new GroupActivity();
         activity.setGroupId(groupId);
         activity.setType(type);
-        activity.setActorUserId(requireUserId(actor));
-        activity.setActorUsernameSnapshot(actor.getUsername());
-        activity.setTargetUserId(target != null ? requireUserId(target) : null);
-        activity.setTargetUsernameSnapshot(target != null ? target.getUsername() : null);
+        activity.setActorUserId(resolvedActor.userId());
+        activity.setActorUsernameSnapshot(resolvedActor.usernameSnapshot());
+        activity.setTargetUserId(target != null ? requireUserRef(target).userId() : null);
+        activity.setTargetUsernameSnapshot(target != null ? requireUserRef(target).usernameSnapshot() : null);
         activity.setMetaVersion(META_VERSION);
         activity.setMeta(meta);
         groupActivityRepository.save(activity);
     }
 
-    private Long requireUserId(User user) {
-        if (user == null || user.getId() == null) {
-            throw new IllegalArgumentException("User muss persistiert sein");
+    private ActivityUserRef requireUserRef(ActivityUserRef userRef) {
+        if (userRef == null) {
+            throw new IllegalArgumentException("Activity-User darf nicht null sein");
         }
-        return user.getId();
+        return userRef;
     }
 
     private int resolveLimit(Integer limit) {

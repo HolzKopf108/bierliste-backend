@@ -138,6 +138,17 @@ public class GroupController {
         return ResponseEntity.ok(Map.of("message", "Gruppe verlassen"));
     }
 
+    @DeleteMapping("/{groupId}/members/{targetUserId}")
+    public ResponseEntity<Void> removeGroupMember(
+        @PathVariable Long groupId,
+        @PathVariable Long targetUserId,
+        @AuthenticationPrincipal User user
+    ) {
+        groupAuthorizationService.requireWart(groupId, user);
+        groupService.removeGroupMember(groupId, targetUserId, user);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{groupId}/invites")
     public ResponseEntity<GroupInviteResponseDto> createInvite(@PathVariable Long groupId, @AuthenticationPrincipal User user) {
         return ResponseEntity.status(HttpStatus.CREATED).body(groupInviteService.createInvite(groupId, user));

@@ -17,7 +17,15 @@ import org.hibernate.annotations.ColumnDefault;
         @Index(name = "idx_group_members_user", columnList = "user_id")
     }
 )
-@Check(constraints = "strich_count >= 0 and role in ('MEMBER', 'ADMIN')")
+@Check(constraints = """
+    strich_count >= 0
+    and role in ('MEMBER', 'ADMIN')
+    and (
+        (active = true and left_at is null)
+        or
+        (active = false and left_at is not null)
+    )
+    """)
 public class GroupMember {
 
     @Id
@@ -46,6 +54,13 @@ public class GroupMember {
     @Column(name = "strich_count", nullable = false)
     private int strichCount = 0;
 
+    @ColumnDefault("true")
+    @Column(nullable = false)
+    private boolean active = true;
+
+    @Column(name = "left_at")
+    private Instant leftAt;
+
     public Long getId() { return id; }
     public Group getGroup() { return group; }
     public void setGroup(Group group) { this.group = group; }
@@ -56,4 +71,8 @@ public class GroupMember {
     public Instant getJoinedAt() { return joinedAt; }
     public int getStrichCount() { return strichCount; }
     public void setStrichCount(int strichCount) { this.strichCount = strichCount; }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
+    public Instant getLeftAt() { return leftAt; }
+    public void setLeftAt(Instant leftAt) { this.leftAt = leftAt; }
 }

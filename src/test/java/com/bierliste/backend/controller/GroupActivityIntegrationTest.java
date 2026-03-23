@@ -1,6 +1,7 @@
 package com.bierliste.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -109,6 +110,31 @@ class GroupActivityIntegrationTest {
         assertThat(activities.get(0).getActorUsernameSnapshot()).isEqualTo("JoinMember");
         assertThat(activities.get(0).getTargetUsernameSnapshot()).isEqualTo("JoinMember");
         assertThat(activities.get(1).getMeta()).containsEntry("via", "INVITE");
+    }
+
+    @Test
+    void removeMemberPersistsRemovedActivityWithActorAndTarget() throws Exception {
+        User admin = createUser("activity-remove-admin@example.com", "RemoveAdmin");
+        User target = createUser("activity-remove-target@example.com", "RemoveTarget");
+        Group group = createGroup("Remove Verlauf", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, target, GroupRole.MEMBER);
+
+        String adminToken = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(delete("/api/v1/groups/" + group.getId() + "/members/" + target.getId())
+                .header("Authorization", "Bearer " + adminToken))
+            .andExpect(status().isNoContent());
+
+        List<GroupActivity> activities = groupActivityRepository.findAllByGroupIdOrderByTimestampDescIdDesc(group.getId());
+
+        assertThat(activities).hasSize(1);
+        assertThat(activities.getFirst().getType()).isEqualTo(ActivityType.USER_REMOVED_FROM_GROUP);
+        assertThat(activities.getFirst().getActorUserId()).isEqualTo(admin.getId());
+        assertThat(activities.getFirst().getTargetUserId()).isEqualTo(target.getId());
+        assertThat(activities.getFirst().getActorUsernameSnapshot()).isEqualTo("RemoveAdmin");
+        assertThat(activities.getFirst().getTargetUsernameSnapshot()).isEqualTo("RemoveTarget");
     }
 
     @Test

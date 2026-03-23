@@ -13,7 +13,7 @@ Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Da
 | Nutzerprofil lesen/ändern | Implementiert | UserController, UserService, UserDto | Updates nur bei gültigem lastUpdated |
 | Passwort ändern (eingeloggt) | Implementiert | UserController.updatePassword, UserService.updatePassword | Kein Check des alten Passworts |
 | Nutzer-Einstellungen | Implementiert | UserSettingsController, UserSettingsService, UserSettings | Theme + AutoSync |
-| Gruppen & Mitgliederverwaltung | Implementiert | GroupController, GroupService, Group, GroupMember | Mitgliedschaften pro Gruppe/User |
+| Gruppen & Mitgliederverwaltung | Implementiert | GroupController, GroupService, Group, GroupMember | Aktive Memberships sind sichtbar; Leave/Remove nutzt Soft-Delete via `active=false`, `leftAt` |
 | Einladungen zu Gruppen | Fehlt | - | - |
 | Striche pro Gruppe/History | Teilweise | GroupController, GroupService, GroupMember | Gruppenbezogener Counter vorhanden, keine History |
 | Rollen/Admin pro Gruppe | Implementiert | GroupRole, GroupMember, GroupAuthorizationService | `ADMIN` und `MEMBER` werden in Mitgliedschaften geprüft |
@@ -56,6 +56,11 @@ Hinweis: Es gibt keine Migrationen (Flyway/Liquibase). Das Schema wird via `spri
 - Nicht eingeloggt: HTTP 401 mit `{"error":"Nicht authentifiziert"}`.
 - Gruppenendpunkte mit Mitgliedschaftspflicht liefern bei fehlender Gruppe oder fehlender Mitgliedschaft bewusst HTTP 404 mit `{"error":"Gruppe nicht gefunden"}`.
 - Wart-Prüfungen verwenden `GroupRole.ADMIN` und liefern für normale Mitglieder HTTP 403 mit `{"error":"Wart-Rechte erforderlich"}`.
+- `POST /api/v1/groups/{groupId}/leave` und `DELETE /api/v1/groups/{groupId}/members/{targetUserId}` enden technisch im selben Membership-Zustand: `active=false`, `leftAt=<timestamp>`.
+- `DELETE /api/v1/groups/{groupId}/members/{targetUserId}` ist nur für Warte erlaubt. Entfernt ein Wart sich dort selbst, wird das wie ein normales Leave behandelt.
+- `GET /api/v1/groups/{groupId}/members` liefert standardmäßig nur aktive Memberships zurück; inaktive ehemalige Mitglieder tauchen dort nicht mehr auf.
+- Counter und Settlements bleiben bei inaktiven Memberships historisch erhalten; beim erneuten Join per Invite wird die bestehende Membership reaktiviert und als `MEMBER` weitergeführt.
+- Verlässt der letzte aktive Wart eine Gruppe oder entfernt sich selbst, wird automatisch das älteste verbleibende aktive Mitglied zu `ADMIN` befördert.
 - `POST /api/v1/groups/{groupId}/roles/promote` ist idempotent und liefert immer den aktuellen Stand des Ziel-Mitglieds zurück; ist das Ziel bereits `ADMIN`, bleibt die Antwort dennoch HTTP 200.
 - Schlägt eine Promotion fehl, weil `targetUserId` kein Mitglied der Gruppe ist, liefert der Endpoint HTTP 404 mit `{"error":"Gruppenmitglied nicht gefunden"}`.
 - `POST /api/v1/groups/{groupId}/roles/demote` ist ebenfalls idempotent, solange noch mindestens ein `ADMIN` in der Gruppe verbleibt.
@@ -91,6 +96,9 @@ Zeitformat für `Instant`: ISO-8601, z.B. `2026-01-25T12:34:56Z`
 | GET | /user/settings | ja | - | - | UserSettingsDto |
 | PUT | /user/settings | ja | - | UserSettingsDto {theme, lastUpdated} | UserSettingsDto |
 | POST | /user/settings/verifyPassword | ja | - | {password} | {valid} |
+| GET | /groups/{groupId}/members | ja | - | - | GroupMemberDto[] (nur aktive Mitglieder) |
+| POST | /groups/{groupId}/leave | ja | - | - | {message} |
+| DELETE | /groups/{groupId}/members/{targetUserId} | ja | - | - | 204 No Content |
 | GET | /groups/{groupId}/me/role | ja | - | - | GroupRoleDto {role} |
 | POST | /groups/{groupId}/roles/promote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |
 | POST | /groups/{groupId}/roles/demote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |

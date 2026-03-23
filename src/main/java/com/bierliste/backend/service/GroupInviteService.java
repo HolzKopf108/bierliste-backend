@@ -66,20 +66,27 @@ public class GroupInviteService {
         }
 
         Group group = invite.getGroup();
-        if (groupMemberRepository.existsByGroup_IdAndUser_Id(group.getId(), userId)) {
+        if (groupMemberRepository.existsByGroup_IdAndUser_IdAndActiveTrue(group.getId(), userId)) {
             return new GroupSummaryDto(group.getId(), group.getName());
         }
 
-        GroupMember membership = new GroupMember();
-        membership.setGroup(group);
-        membership.setUser(user);
+        GroupMember membership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), userId)
+            .orElseGet(() -> {
+                GroupMember newMembership = new GroupMember();
+                newMembership.setGroup(group);
+                newMembership.setUser(user);
+                return newMembership;
+            });
+
         membership.setRole(GroupRole.MEMBER);
+        membership.setActive(true);
+        membership.setLeftAt(null);
 
         try {
             groupMemberRepository.save(membership);
-            activityService.logUserJoinedGroup(group.getId(), user, "INVITE");
+            activityService.logUserJoinedGroup(group.getId(), ActivityUserRef.from(user), "INVITE");
         } catch (DataIntegrityViolationException ex) {
-            if (!groupMemberRepository.existsByGroup_IdAndUser_Id(group.getId(), userId)) {
+            if (!groupMemberRepository.existsByGroup_IdAndUser_IdAndActiveTrue(group.getId(), userId)) {
                 throw ex;
             }
         }

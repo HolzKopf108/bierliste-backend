@@ -77,8 +77,10 @@ class UserServiceIntegrationTest {
 
         assertThat(groupRepository.findById(deletedGroup.getId())).isEmpty();
         assertThat(groupRepository.findById(promotedGroup.getId())).isPresent();
-        assertThat(groupMemberRepository.findByGroup_IdAndUser_Id(promotedGroup.getId(), deletedUser.getId())).isEmpty();
+        GroupMember inactiveDeletedUserMembership = groupMemberRepository.findByGroup_IdAndUser_Id(promotedGroup.getId(), deletedUser.getId()).orElseThrow();
         GroupMember promotedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(promotedGroup.getId(), remainingUser.getId()).orElseThrow();
+        assertThat(inactiveDeletedUserMembership.isActive()).isFalse();
+        assertThat(inactiveDeletedUserMembership.getLeftAt()).isNotNull();
         assertThat(promotedMembership.getRole()).isEqualTo(GroupRole.ADMIN);
 
         assertThat(refreshTokenRepository.findByToken(refreshToken.getToken())).isEmpty();
