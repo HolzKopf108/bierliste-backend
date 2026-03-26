@@ -60,7 +60,7 @@ public class GroupService {
                         GroupMemberRepository groupMemberRepository,
                         UserRepository userRepository,
                         GroupAuthorizationService groupAuthorizationService,
-                        @Value("${app.counter.undo-window:PT5S}") Duration counterUndoWindow,
+                        @Value("${app.counter.undo-window:PT30S}") Duration counterUndoWindow,
                         ActivityService activityService) {
         this.groupRepository = groupRepository;
         this.groupInviteRepository = groupInviteRepository;
