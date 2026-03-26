@@ -14,10 +14,12 @@ import com.bierliste.backend.model.GroupInvitePermission;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
+import com.bierliste.backend.repository.CounterIncrementRequestRepository;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
 import com.bierliste.backend.security.JwtTokenProvider;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.Map;
@@ -28,6 +30,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
@@ -50,6 +53,9 @@ class GroupControllerIntegrationTest {
 
     @Autowired
     private GroupMemberRepository groupMemberRepository;
+
+    @Autowired
+    private CounterIncrementRequestRepository counterIncrementRequestRepository;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -127,6 +133,14 @@ class GroupControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/groups/1/members/2/counter/increment")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
+    }
+
+    @Test
+    void undoCounterIncrementReturnsUnauthorizedWhenNoTokenIsProvided() throws Exception {
+        mockMvc.perform(post("/api/v1/groups/1/counter/increments/1/undo"))
             .andExpect(status().isUnauthorized())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.error").value("Nicht authentifiziert"));
@@ -475,7 +489,9 @@ class GroupControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.count").value(3));
+            .andExpect(jsonPath("$.count").value(3))
+            .andExpect(jsonPath("$.incrementRequestId").isNumber())
+            .andExpect(jsonPath("$.undoExpiresAt").isNotEmpty());
 
         int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), member.getId()).orElseThrow();
         assertThat(updatedCount).isEqualTo(3);
@@ -708,6 +724,183 @@ class GroupControllerIntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.amount").exists());
+    }
+
+    @Test
+    void undoCounterIncrementRevertsOnlyTheMatchingRequest() throws Exception {
+        User userA = createUser("undo-edge-a@example.com", "UndoA");
+        User userB = createUser("undo-edge-b@example.com", "UndoB");
+        Group group = createGroup("Undo Edge", userA);
+        group.setOnlyWartsCanBookForOthers(false);
+        groupRepository.save(group);
+
+        createMembership(group, userA, GroupRole.MEMBER);
+        createMembership(group, userB, GroupRole.MEMBER);
+
+        String tokenA = jwtTokenProvider.createAccessToken(userA);
+        String tokenB = jwtTokenProvider.createAccessToken(userB);
+
+        MvcResult firstIncrementResult = mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + tokenA)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.count").value(1))
+            .andReturn();
+
+        long firstIncrementRequestId = readLongField(firstIncrementResult, "incrementRequestId");
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/members/" + userA.getId() + "/counter/increment")
+                .header("Authorization", "Bearer " + tokenB)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 2))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.count").value(3));
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/counter/increments/" + firstIncrementRequestId + "/undo")
+                .header("Authorization", "Bearer " + tokenA))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.count").value(2))
+            .andExpect(jsonPath("$.incrementRequestId").value(firstIncrementRequestId))
+            .andExpect(jsonPath("$.undoneAt").isNotEmpty());
+
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), userA.getId()).orElseThrow();
+        assertThat(updatedCount).isEqualTo(2);
+    }
+
+    @Test
+    void undoCounterIncrementIsIdempotentForRepeatedUndoRequests() throws Exception {
+        User member = createUser("undo-idempotent@example.com", "UndoIdempotent");
+        Group group = createGroup("Undo Idempotent", member);
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        MvcResult incrementResult = mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 2))))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        long incrementRequestId = readLongField(incrementResult, "incrementRequestId");
+
+        MvcResult firstUndoResult = mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/counter/increments/" + incrementRequestId + "/undo")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.count").value(0))
+            .andReturn();
+
+        JsonNode firstUndoJson = objectMapper.readTree(firstUndoResult.getResponse().getContentAsString());
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/counter/increments/" + incrementRequestId + "/undo")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.count").value(0))
+            .andExpect(jsonPath("$.incrementRequestId").value(incrementRequestId))
+            .andExpect(jsonPath("$.undoneAt").value(firstUndoJson.get("undoneAt").asText()));
+
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), member.getId()).orElseThrow();
+        assertThat(updatedCount).isZero();
+    }
+
+    @Test
+    void undoCounterIncrementReturnsConflictWhenUndoWindowExpired() throws Exception {
+        User member = createUser("undo-expired@example.com", "UndoExpired");
+        Group group = createGroup("Undo Expired", member);
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        MvcResult incrementResult = mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        long incrementRequestId = readLongField(incrementResult, "incrementRequestId");
+        var incrementRequest = counterIncrementRequestRepository.findById(incrementRequestId).orElseThrow();
+        incrementRequest.setUndoExpiresAt(incrementRequest.getCreatedAt());
+        counterIncrementRequestRepository.save(incrementRequest);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/counter/increments/" + incrementRequestId + "/undo")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Undo-Zeitfenster abgelaufen"));
+
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), member.getId()).orElseThrow();
+        assertThat(updatedCount).isEqualTo(1);
+    }
+
+    @Test
+    void undoCounterIncrementReturnsConflictWhenTheBookedStricheWereAlreadyConsumed() throws Exception {
+        User admin = createUser("undo-consumed-admin@example.com", "UndoAdmin");
+        Group group = createGroup("Undo Consumed", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        MvcResult incrementResult = mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        long incrementRequestId = readLongField(incrementResult, "incrementRequestId");
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/members/" + admin.getId() + "/settlements/striche")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.strichCount").value(0));
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/counter/increments/" + incrementRequestId + "/undo")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Strich-Request kann nicht mehr rückgängig gemacht werden"));
+
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), admin.getId()).orElseThrow();
+        assertThat(updatedCount).isZero();
+    }
+
+    @Test
+    void undoCounterIncrementReturnsNotFoundForOtherUsersRequest() throws Exception {
+        User userA = createUser("undo-owner-a@example.com", "UndoOwnerA");
+        User userB = createUser("undo-owner-b@example.com", "UndoOwnerB");
+        Group group = createGroup("Undo Ownership", userA);
+
+        createMembership(group, userA, GroupRole.ADMIN);
+        createMembership(group, userB, GroupRole.MEMBER);
+
+        String tokenA = jwtTokenProvider.createAccessToken(userA);
+        String tokenB = jwtTokenProvider.createAccessToken(userB);
+
+        MvcResult incrementResult = mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + tokenA)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 1))))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        long incrementRequestId = readLongField(incrementResult, "incrementRequestId");
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/counter/increments/" + incrementRequestId + "/undo")
+                .header("Authorization", "Bearer " + tokenB))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.error").value("Strich-Request nicht gefunden"));
+
+        int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), userA.getId()).orElseThrow();
+        assertThat(updatedCount).isEqualTo(1);
     }
 
     @Test
@@ -1325,6 +1518,11 @@ class GroupControllerIntegrationTest {
     private String createAccessTokenForUser(String email) {
         User user = createUser(email);
         return jwtTokenProvider.createAccessToken(user);
+    }
+
+    private long readLongField(MvcResult result, String fieldName) throws Exception {
+        JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+        return json.get(fieldName).asLong();
     }
 
     private User createUser(String email) {

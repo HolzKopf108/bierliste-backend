@@ -3,8 +3,10 @@ package com.bierliste.backend.repository;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +18,28 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
     Optional<GroupMember> findByGroup_IdAndUser_Id(Long groupId, Long userId);
 
     Optional<GroupMember> findByGroup_IdAndUser_IdAndActiveTrue(Long groupId, Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select gm
+        from GroupMember gm
+        where gm.group.id = :groupId and gm.user.id = :userId
+        """)
+    Optional<GroupMember> findByGroup_IdAndUser_IdForUpdate(
+        @Param("groupId") Long groupId,
+        @Param("userId") Long userId
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select gm
+        from GroupMember gm
+        where gm.group.id = :groupId and gm.user.id = :userId and gm.active = true
+        """)
+    Optional<GroupMember> findByGroup_IdAndUser_IdAndActiveTrueForUpdate(
+        @Param("groupId") Long groupId,
+        @Param("userId") Long userId
+    );
 
     List<GroupMember> findAllByGroup_Id(Long groupId);
 

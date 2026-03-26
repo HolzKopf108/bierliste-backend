@@ -2,6 +2,7 @@ package com.bierliste.backend.model;
 
 public enum ActivityType {
     STRICH_INCREMENTED,
+    STRICH_INCREMENT_UNDONE,
     STRICHE_DEDUCTED,
     MONEY_DEDUCTED,
     USER_JOINED_GROUP,

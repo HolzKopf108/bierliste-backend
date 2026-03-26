@@ -177,6 +177,63 @@ class GroupActivityIntegrationTest {
     }
 
     @Test
+    void undoCounterIncrementPersistsSeparateActivityAndExposesItInActivitiesEndpoint() throws Exception {
+        User member = createUser("activity-undo-member@example.com", "UndoMember");
+        Group group = createGroup("Undo Verlauf", member);
+
+        createMembership(group, member, GroupRole.ADMIN);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        MvcResult incrementResult = mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/me/counter/increment")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 2))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.count").value(2))
+            .andReturn();
+
+        long incrementRequestId = objectMapper.readTree(incrementResult.getResponse().getContentAsString())
+            .get("incrementRequestId")
+            .asLong();
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/counter/increments/" + incrementRequestId + "/undo")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.count").value(0))
+            .andExpect(jsonPath("$.incrementRequestId").value(incrementRequestId))
+            .andExpect(jsonPath("$.undoneAt").isNotEmpty());
+
+        List<GroupActivity> activities = groupActivityRepository.findAllByGroupIdOrderByTimestampDescIdDesc(group.getId());
+
+        assertThat(activities).hasSize(2);
+        assertThat(activities.get(0).getType()).isEqualTo(ActivityType.STRICH_INCREMENT_UNDONE);
+        assertThat(activities.get(0).getActorUserId()).isEqualTo(member.getId());
+        assertThat(activities.get(0).getTargetUserId()).isEqualTo(member.getId());
+        assertThat(activities.get(0).getMeta())
+            .containsEntry("amount", 2)
+            .containsEntry("mode", "SELF")
+            .containsEntry("incrementRequestId", incrementRequestId)
+            .containsEntry("originalActivityId", activities.get(1).getId());
+        assertThat(activities.get(1).getType()).isEqualTo(ActivityType.STRICH_INCREMENTED);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/activities")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.items[0].type").value("STRICH_INCREMENT_UNDONE"))
+            .andExpect(jsonPath("$.items[0].actor.userId").value(member.getId()))
+            .andExpect(jsonPath("$.items[0].target.userId").value(member.getId()))
+            .andExpect(jsonPath("$.items[0].amount").value(2))
+            .andExpect(jsonPath("$.items[0].mode").value("SELF"))
+            .andExpect(jsonPath("$.items[0].incrementRequestId").value(incrementRequestId))
+            .andExpect(jsonPath("$.items[0].originalActivityId").value(activities.get(1).getId()))
+            .andExpect(jsonPath("$.items[1].type").value("STRICH_INCREMENTED"))
+            .andExpect(jsonPath("$.items[1].amount").value(2))
+            .andExpect(jsonPath("$.items[1].mode").value("SELF"));
+    }
+
+    @Test
     void settlementHooksPersistMoneyAndStricheActivities() throws Exception {
         User admin = createUser("activity-settlement-admin@example.com", "SettlementAdmin");
         User target = createUser("activity-settlement-target@example.com", "SettlementTarget");

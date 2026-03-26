@@ -2,54 +2,76 @@ package com.bierliste.backend.service;
 
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.CounterIncrementDto;
+import com.bierliste.backend.dto.CounterIncrementResponseDto;
+import com.bierliste.backend.dto.CounterUndoResponseDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupMemberDto;
 import com.bierliste.backend.dto.GroupRoleDto;
-import com.bierliste.backend.dto.GroupSettingsResponseDto;
 import com.bierliste.backend.dto.GroupSummaryDto;
-import com.bierliste.backend.dto.PromoteGroupMemberDto;
+import com.bierliste.backend.dto.GroupSettingsResponseDto;
 import com.bierliste.backend.dto.GroupSettingsUpdateDto;
+import com.bierliste.backend.dto.PromoteGroupMemberDto;
+import com.bierliste.backend.model.CounterIncrementRequest;
 import com.bierliste.backend.model.Group;
+import com.bierliste.backend.model.GroupActivity;
+import com.bierliste.backend.model.GroupActivityBookingMode;
 import com.bierliste.backend.model.GroupInvitePermission;
 import com.bierliste.backend.model.GroupMember;
 import com.bierliste.backend.model.GroupRole;
 import com.bierliste.backend.model.User;
+import com.bierliste.backend.repository.CounterIncrementRequestRepository;
 import com.bierliste.backend.repository.GroupInviteRepository;
 import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import java.time.Duration;
 import java.time.Instant;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class GroupService {
 
+    private static final String GROUP_NOT_FOUND_MESSAGE = "Gruppe nicht gefunden";
+    private static final String TARGET_NOT_FOUND_MESSAGE = "Gruppenmitglied nicht gefunden";
+    private static final String INCREMENT_REQUEST_NOT_FOUND_MESSAGE = "Strich-Request nicht gefunden";
+    private static final String INCREMENT_REQUEST_NOT_REVERSIBLE_MESSAGE = "Strich-Request kann nicht mehr rückgängig gemacht werden";
+    private static final String UNDO_WINDOW_EXPIRED_MESSAGE = "Undo-Zeitfenster abgelaufen";
+
     private final GroupRepository groupRepository;
     private final GroupInviteRepository groupInviteRepository;
+    private final CounterIncrementRequestRepository counterIncrementRequestRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
     private final GroupAuthorizationService groupAuthorizationService;
     private final ActivityService activityService;
+    private final Duration counterUndoWindow;
 
     public GroupService(GroupRepository groupRepository,
                         GroupInviteRepository groupInviteRepository,
+                        CounterIncrementRequestRepository counterIncrementRequestRepository,
                         GroupMemberRepository groupMemberRepository,
                         UserRepository userRepository,
                         GroupAuthorizationService groupAuthorizationService,
+                        @Value("${app.counter.undo-window:PT5S}") Duration counterUndoWindow,
                         ActivityService activityService) {
         this.groupRepository = groupRepository;
         this.groupInviteRepository = groupInviteRepository;
+        this.counterIncrementRequestRepository = counterIncrementRequestRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
         this.groupAuthorizationService = groupAuthorizationService;
+        if (counterUndoWindow.isZero() || counterUndoWindow.isNegative()) {
+            throw new IllegalArgumentException("app.counter.undo-window muss groesser als 0 sein");
+        }
+        this.counterUndoWindow = counterUndoWindow;
         this.activityService = activityService;
     }
 
@@ -157,43 +179,71 @@ public class GroupService {
     }
 
     @Transactional
-    public int incrementOwnCounterForGroup(Long groupId, CounterIncrementDto dto, User user) {
+    public CounterIncrementResponseDto incrementOwnCounterForGroup(Long groupId, CounterIncrementDto dto, User user) {
         Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
-        groupAuthorizationService.requireMemberEntity(groupId, user);
-        ActivityUserRef userRef = ActivityUserRef.from(user);
+        GroupMember membership = groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrueForUpdate(groupId, userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, GROUP_NOT_FOUND_MESSAGE));
 
-        groupMemberRepository.incrementActiveStrichCount(groupId, userId, dto.getAmount());
-
-        int updatedCount = groupMemberRepository.findActiveStrichCountByGroup_IdAndUser_Id(groupId, userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppe nicht gefunden"));
-
-        activityService.logStrichIncremented(groupId, userRef, userRef, dto.getAmount());
-
-        return updatedCount;
+        return createCounterIncrement(groupId, membership, membership, dto.getAmount());
     }
 
     @Transactional
-    public int incrementMemberCounterForGroup(Long groupId, Long targetUserId, CounterIncrementDto dto, User user) {
+    public CounterIncrementResponseDto incrementMemberCounterForGroup(Long groupId, Long targetUserId, CounterIncrementDto dto, User user) {
         GroupMember actorMembership = groupAuthorizationService.requireMemberEntity(groupId, user);
-        GroupMember targetMembership = requireTargetMembership(groupId, targetUserId);
-        ActivityUserRef actorUserRef = ActivityUserRef.from(actorMembership.getUser());
-        ActivityUserRef targetUserRef = ActivityUserRef.from(targetMembership.getUser());
+        GroupMember targetMembership = requireTargetMembershipForUpdate(groupId, targetUserId);
 
         requireCounterIncrementPermission(actorMembership, targetMembership);
 
-        groupMemberRepository.incrementActiveStrichCount(groupId, targetUserId, dto.getAmount());
+        return createCounterIncrement(groupId, actorMembership, targetMembership, dto.getAmount());
+    }
 
-        int updatedCount = groupMemberRepository.findActiveStrichCountByGroup_IdAndUser_Id(groupId, targetUserId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
+    @Transactional
+    public CounterUndoResponseDto undoCounterIncrementForGroup(Long groupId, Long incrementRequestId, User user) {
+        Long actorUserId = groupAuthorizationService.requireAuthenticatedUserId(user);
+        CounterIncrementRequest incrementRequest = counterIncrementRequestRepository.findByIdAndGroupIdForUpdate(incrementRequestId, groupId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, INCREMENT_REQUEST_NOT_FOUND_MESSAGE));
 
-        activityService.logStrichIncremented(
+        if (!incrementRequest.getActorUserId().equals(actorUserId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, INCREMENT_REQUEST_NOT_FOUND_MESSAGE);
+        }
+
+        if (incrementRequest.getUndoneAt() != null) {
+            return new CounterUndoResponseDto(
+                requireRecordedUndoCount(incrementRequest),
+                incrementRequest.getId(),
+                incrementRequest.getUndoneAt()
+            );
+        }
+
+        Instant now = Instant.now();
+        if (now.isAfter(incrementRequest.getUndoExpiresAt())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, UNDO_WINDOW_EXPIRED_MESSAGE);
+        }
+
+        GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_IdForUpdate(groupId, incrementRequest.getTargetUserId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, INCREMENT_REQUEST_NOT_REVERSIBLE_MESSAGE));
+
+        if (targetMembership.getStrichCount() < incrementRequest.getAmount()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, INCREMENT_REQUEST_NOT_REVERSIBLE_MESSAGE);
+        }
+
+        targetMembership.setStrichCount(targetMembership.getStrichCount() - incrementRequest.getAmount());
+
+        GroupActivity undoActivity = activityService.logStrichIncrementUndone(
             groupId,
-            actorUserRef,
-            targetUserRef,
-            dto.getAmount()
+            ActivityUserRef.from(user),
+            ActivityUserRef.from(targetMembership.getUser()),
+            incrementRequest.getAmount(),
+            incrementRequest.getMode(),
+            incrementRequest.getId(),
+            incrementRequest.getIncrementActivityId()
         );
 
-        return updatedCount;
+        incrementRequest.setUndoneAt(now);
+        incrementRequest.setUndoActivityId(undoActivity.getId());
+        incrementRequest.setCountAfterUndo(targetMembership.getStrichCount());
+
+        return new CounterUndoResponseDto(targetMembership.getStrichCount(), incrementRequest.getId(), now);
     }
 
     @Transactional
@@ -325,7 +375,59 @@ public class GroupService {
         }
 
         return groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrue(groupId, targetUserId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gruppenmitglied nicht gefunden"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, TARGET_NOT_FOUND_MESSAGE));
+    }
+
+    private GroupMember requireTargetMembershipForUpdate(Long groupId, Long targetUserId) {
+        if (!userRepository.existsById(targetUserId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden");
+        }
+
+        return groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrueForUpdate(groupId, targetUserId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, TARGET_NOT_FOUND_MESSAGE));
+    }
+
+    private CounterIncrementResponseDto createCounterIncrement(
+        Long groupId,
+        GroupMember actorMembership,
+        GroupMember targetMembership,
+        int amount
+    ) {
+        ActivityUserRef actorUserRef = ActivityUserRef.from(actorMembership.getUser());
+        ActivityUserRef targetUserRef = ActivityUserRef.from(targetMembership.getUser());
+        GroupActivityBookingMode bookingMode = actorUserRef.userId().equals(targetUserRef.userId())
+            ? GroupActivityBookingMode.SELF
+            : GroupActivityBookingMode.OTHER;
+
+        targetMembership.setStrichCount(targetMembership.getStrichCount() + amount);
+
+        GroupActivity incrementActivity = activityService.logStrichIncremented(groupId, actorUserRef, targetUserRef, amount);
+        Instant now = Instant.now();
+
+        CounterIncrementRequest incrementRequest = new CounterIncrementRequest();
+        incrementRequest.setGroupId(groupId);
+        incrementRequest.setActorUserId(actorUserRef.userId());
+        incrementRequest.setTargetUserId(targetUserRef.userId());
+        incrementRequest.setAmount(amount);
+        incrementRequest.setMode(bookingMode);
+        incrementRequest.setIncrementActivityId(incrementActivity.getId());
+        incrementRequest.setCreatedAt(now);
+        incrementRequest.setUndoExpiresAt(now.plus(counterUndoWindow));
+        counterIncrementRequestRepository.save(incrementRequest);
+
+        return new CounterIncrementResponseDto(
+            targetMembership.getStrichCount(),
+            incrementRequest.getId(),
+            incrementRequest.getUndoExpiresAt()
+        );
+    }
+
+    private int requireRecordedUndoCount(CounterIncrementRequest incrementRequest) {
+        Integer countAfterUndo = incrementRequest.getCountAfterUndo();
+        if (countAfterUndo == null) {
+            throw new IllegalStateException("Undo-Zaehlerstand fehlt fuer Strich-Request " + incrementRequest.getId());
+        }
+        return countAfterUndo;
     }
 
     private GroupMemberDto toGroupMemberDto(GroupMember membership) {

@@ -12,6 +12,7 @@ import java.time.Instant;
     discriminatorProperty = "type",
     discriminatorMapping = {
         @DiscriminatorMapping(value = "STRICH_INCREMENTED", schema = StrichIncrementedGroupActivityDto.class),
+        @DiscriminatorMapping(value = "STRICH_INCREMENT_UNDONE", schema = StrichIncrementUndoneGroupActivityDto.class),
         @DiscriminatorMapping(value = "STRICHE_DEDUCTED", schema = StricheDeductedGroupActivityDto.class),
         @DiscriminatorMapping(value = "MONEY_DEDUCTED", schema = MoneyDeductedGroupActivityDto.class),
         @DiscriminatorMapping(value = "USER_JOINED_GROUP", schema = UserJoinedGroupActivityDto.class),
@@ -25,6 +26,7 @@ import java.time.Instant;
     },
     oneOf = {
         StrichIncrementedGroupActivityDto.class,
+        StrichIncrementUndoneGroupActivityDto.class,
         StricheDeductedGroupActivityDto.class,
         MoneyDeductedGroupActivityDto.class,
         UserJoinedGroupActivityDto.class,
@@ -40,6 +42,7 @@ import java.time.Instant;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = StrichIncrementedGroupActivityDto.class, name = "STRICH_INCREMENTED"),
+    @JsonSubTypes.Type(value = StrichIncrementUndoneGroupActivityDto.class, name = "STRICH_INCREMENT_UNDONE"),
     @JsonSubTypes.Type(value = StricheDeductedGroupActivityDto.class, name = "STRICHE_DEDUCTED"),
     @JsonSubTypes.Type(value = MoneyDeductedGroupActivityDto.class, name = "MONEY_DEDUCTED"),
     @JsonSubTypes.Type(value = UserJoinedGroupActivityDto.class, name = "USER_JOINED_GROUP"),

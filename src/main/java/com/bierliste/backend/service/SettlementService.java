@@ -126,7 +126,7 @@ public class SettlementService {
     }
 
     private GroupMember requireTargetMembership(Long groupId, Long targetUserId) {
-        return groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrue(groupId, targetUserId)
+        return groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrueForUpdate(groupId, targetUserId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, TARGET_NOT_FOUND_MESSAGE));
     }
 

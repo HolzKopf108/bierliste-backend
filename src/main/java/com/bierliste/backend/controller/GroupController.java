@@ -2,7 +2,9 @@ package com.bierliste.backend.controller;
 
 import com.bierliste.backend.dto.CreateGroupDto;
 import com.bierliste.backend.dto.CounterIncrementDto;
+import com.bierliste.backend.dto.CounterIncrementResponseDto;
 import com.bierliste.backend.dto.CounterResponseDto;
+import com.bierliste.backend.dto.CounterUndoResponseDto;
 import com.bierliste.backend.dto.GroupDto;
 import com.bierliste.backend.dto.GroupActivitiesResponseDto;
 import com.bierliste.backend.dto.GroupInviteResponseDto;
@@ -111,24 +113,33 @@ public class GroupController {
     }
 
     @PostMapping("/{groupId}/me/counter/increment")
-    public ResponseEntity<CounterResponseDto> incrementOwnCounter(
+    public ResponseEntity<CounterIncrementResponseDto> incrementOwnCounter(
         @PathVariable Long groupId,
         @Valid @RequestBody CounterIncrementDto dto,
         @AuthenticationPrincipal User user
     ) {
         groupAuthorizationService.requireMember(groupId, user);
-        return ResponseEntity.ok(new CounterResponseDto(groupService.incrementOwnCounterForGroup(groupId, dto, user)));
+        return ResponseEntity.ok(groupService.incrementOwnCounterForGroup(groupId, dto, user));
     }
 
     @PostMapping("/{groupId}/members/{targetUserId}/counter/increment")
-    public ResponseEntity<CounterResponseDto> incrementMemberCounter(
+    public ResponseEntity<CounterIncrementResponseDto> incrementMemberCounter(
         @PathVariable Long groupId,
         @PathVariable Long targetUserId,
         @Valid @RequestBody CounterIncrementDto dto,
         @AuthenticationPrincipal User user
     ) {
         groupAuthorizationService.requireMember(groupId, user);
-        return ResponseEntity.ok(new CounterResponseDto(groupService.incrementMemberCounterForGroup(groupId, targetUserId, dto, user)));
+        return ResponseEntity.ok(groupService.incrementMemberCounterForGroup(groupId, targetUserId, dto, user));
+    }
+
+    @PostMapping("/{groupId}/counter/increments/{incrementRequestId}/undo")
+    public ResponseEntity<CounterUndoResponseDto> undoCounterIncrement(
+        @PathVariable Long groupId,
+        @PathVariable Long incrementRequestId,
+        @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(groupService.undoCounterIncrementForGroup(groupId, incrementRequestId, user));
     }
 
     @PostMapping("/{groupId}/leave")

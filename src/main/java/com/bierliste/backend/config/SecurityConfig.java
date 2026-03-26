@@ -70,6 +70,7 @@ public class SecurityConfig {
                     mvc.matcher(HttpMethod.PUT, "/api/v1/groups/{groupId}/settings"),
                     mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/me/counter/increment"),
                     mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/members/{targetUserId}/counter/increment"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/counter/increments/{incrementRequestId}/undo"),
                     mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/invites"),
                     mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/leave"),
                     mvc.matcher(HttpMethod.DELETE, "/api/v1/groups/{groupId}/members/{targetUserId}"),

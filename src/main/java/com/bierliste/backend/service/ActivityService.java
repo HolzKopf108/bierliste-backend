@@ -10,6 +10,7 @@ import com.bierliste.backend.dto.InviteUsedGroupActivityDto;
 import com.bierliste.backend.dto.MoneyDeductedGroupActivityDto;
 import com.bierliste.backend.dto.RoleGrantedWartGroupActivityDto;
 import com.bierliste.backend.dto.RoleRevokedWartGroupActivityDto;
+import com.bierliste.backend.dto.StrichIncrementUndoneGroupActivityDto;
 import com.bierliste.backend.dto.StricheDeductedGroupActivityDto;
 import com.bierliste.backend.dto.StrichIncrementedGroupActivityDto;
 import com.bierliste.backend.dto.UserJoinedGroupActivityDto;
@@ -62,7 +63,7 @@ public class ActivityService {
     }
 
     @Transactional
-    public void log(Long groupId, ActivityType type, Long actorUserId, Long targetUserId, Map<String, Object> meta) {
+    public GroupActivity log(Long groupId, ActivityType type, Long actorUserId, Long targetUserId, Map<String, Object> meta) {
         User actor = userRepository.findById(actorUserId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
         User target = targetUserId == null
@@ -70,7 +71,7 @@ public class ActivityService {
             : userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User nicht gefunden"));
 
-        saveActivity(
+        return saveActivity(
             groupId,
             type,
             ActivityUserRef.from(actor),
@@ -79,32 +80,31 @@ public class ActivityService {
         );
     }
 
-    public void log(Long groupId, ActivityType type, ActivityUserRef actor, ActivityUserRef target, Map<String, Object> meta) {
-        saveActivity(groupId, type, actor, target, meta);
+    public GroupActivity log(Long groupId, ActivityType type, ActivityUserRef actor, ActivityUserRef target, Map<String, Object> meta) {
+        return saveActivity(groupId, type, actor, target, meta);
     }
 
-    public void logUserJoinedGroup(Long groupId, ActivityUserRef user) {
-        logUserJoinedGroup(groupId, user, null);
+    public GroupActivity logUserJoinedGroup(Long groupId, ActivityUserRef user) {
+        return logUserJoinedGroup(groupId, user, null);
     }
 
-    public void logUserJoinedGroup(Long groupId, ActivityUserRef user, String via) {
+    public GroupActivity logUserJoinedGroup(Long groupId, ActivityUserRef user, String via) {
         if (via == null || via.isBlank()) {
-            log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of());
-            return;
+            return log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of());
         }
 
-        log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of("via", via));
+        return log(groupId, ActivityType.USER_JOINED_GROUP, user, user, Map.of("via", via));
     }
 
-    public void logUserLeftGroup(Long groupId, ActivityUserRef user) {
-        log(groupId, ActivityType.USER_LEFT_GROUP, user, user, Map.of());
+    public GroupActivity logUserLeftGroup(Long groupId, ActivityUserRef user) {
+        return log(groupId, ActivityType.USER_LEFT_GROUP, user, user, Map.of());
     }
 
-    public void logUserRemovedFromGroup(Long groupId, ActivityUserRef actor, ActivityUserRef target) {
-        log(groupId, ActivityType.USER_REMOVED_FROM_GROUP, actor, target, Map.of());
+    public GroupActivity logUserRemovedFromGroup(Long groupId, ActivityUserRef actor, ActivityUserRef target) {
+        return log(groupId, ActivityType.USER_REMOVED_FROM_GROUP, actor, target, Map.of());
     }
 
-    public void logStrichIncremented(Long groupId, ActivityUserRef actor, ActivityUserRef target, int amount) {
+    public GroupActivity logStrichIncremented(Long groupId, ActivityUserRef actor, ActivityUserRef target, int amount) {
         LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
         ActivityUserRef resolvedActor = requireUserRef(actor);
         ActivityUserRef resolvedTarget = requireUserRef(target);
@@ -113,10 +113,27 @@ public class ActivityService {
         meta.put("mode", resolvedActor.userId().equals(resolvedTarget.userId())
             ? GroupActivityBookingMode.SELF.name()
             : GroupActivityBookingMode.OTHER.name());
-        log(groupId, ActivityType.STRICH_INCREMENTED, resolvedActor, resolvedTarget, meta);
+        return log(groupId, ActivityType.STRICH_INCREMENTED, resolvedActor, resolvedTarget, meta);
     }
 
-    public void logMoneyDeducted(
+    public GroupActivity logStrichIncrementUndone(
+        Long groupId,
+        ActivityUserRef actor,
+        ActivityUserRef target,
+        int amount,
+        GroupActivityBookingMode mode,
+        Long incrementRequestId,
+        Long originalActivityId
+    ) {
+        LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
+        meta.put("amount", amount);
+        meta.put("mode", mode.name());
+        meta.put("incrementRequestId", incrementRequestId);
+        meta.put("originalActivityId", originalActivityId);
+        return log(groupId, ActivityType.STRICH_INCREMENT_UNDONE, actor, target, meta);
+    }
+
+    public GroupActivity logMoneyDeducted(
         Long groupId,
         ActivityUserRef actor,
         ActivityUserRef target,
@@ -124,7 +141,7 @@ public class ActivityService {
         BigDecimal pricePerStrich
     ) {
         if (amountMoney == null || amountMoney.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
+            return null;
         }
 
         LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
@@ -133,20 +150,20 @@ public class ActivityService {
             meta.put("pricePerStrich", pricePerStrich);
         }
 
-        log(groupId, ActivityType.MONEY_DEDUCTED, actor, target, meta);
+        return log(groupId, ActivityType.MONEY_DEDUCTED, actor, target, meta);
     }
 
-    public void logStricheDeducted(Long groupId, ActivityUserRef actor, ActivityUserRef target, int amountStriche) {
+    public GroupActivity logStricheDeducted(Long groupId, ActivityUserRef actor, ActivityUserRef target, int amountStriche) {
         if (amountStriche <= 0) {
-            return;
+            return null;
         }
 
         LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
         meta.put("amountStriche", amountStriche);
-        log(groupId, ActivityType.STRICHE_DEDUCTED, actor, target, meta);
+        return log(groupId, ActivityType.STRICHE_DEDUCTED, actor, target, meta);
     }
 
-    public void logRoleGrantedWart(
+    public GroupActivity logRoleGrantedWart(
         Long groupId,
         ActivityUserRef actor,
         ActivityUserRef target,
@@ -154,16 +171,16 @@ public class ActivityService {
         GroupRole newRole
     ) {
         if (previousRole == newRole) {
-            return;
+            return null;
         }
 
         LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
         meta.put("previousRole", previousRole.name());
         meta.put("newRole", newRole.name());
-        log(groupId, ActivityType.ROLE_GRANTED_WART, actor, target, meta);
+        return log(groupId, ActivityType.ROLE_GRANTED_WART, actor, target, meta);
     }
 
-    public void logRoleRevokedWart(
+    public GroupActivity logRoleRevokedWart(
         Long groupId,
         ActivityUserRef actor,
         ActivityUserRef target,
@@ -171,16 +188,16 @@ public class ActivityService {
         GroupRole newRole
     ) {
         if (previousRole == newRole) {
-            return;
+            return null;
         }
 
         LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
         meta.put("previousRole", previousRole.name());
         meta.put("newRole", newRole.name());
-        log(groupId, ActivityType.ROLE_REVOKED_WART, actor, target, meta);
+        return log(groupId, ActivityType.ROLE_REVOKED_WART, actor, target, meta);
     }
 
-    public void logGroupSettingsChanged(
+    public GroupActivity logGroupSettingsChanged(
         Long groupId,
         ActivityUserRef actor,
         List<String> changedFields,
@@ -188,14 +205,14 @@ public class ActivityService {
         Map<String, Object> newValues
     ) {
         if (changedFields == null || changedFields.isEmpty()) {
-            return;
+            return null;
         }
 
         LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
         meta.put("changedFields", new ArrayList<>(changedFields));
         meta.put("old", new LinkedHashMap<>(oldValues));
         meta.put("new", new LinkedHashMap<>(newValues));
-        log(groupId, ActivityType.GROUP_SETTINGS_CHANGED, actor, null, meta);
+        return log(groupId, ActivityType.GROUP_SETTINGS_CHANGED, actor, null, meta);
     }
 
     public GroupActivitiesResponseDto getActivities(Long groupId, String cursor, Integer limit, User user) {
@@ -224,7 +241,7 @@ public class ActivityService {
         );
     }
 
-    private void saveActivity(
+    private GroupActivity saveActivity(
         Long groupId,
         ActivityType type,
         ActivityUserRef actor,
@@ -241,7 +258,7 @@ public class ActivityService {
         activity.setTargetUsernameSnapshot(target != null ? requireUserRef(target).usernameSnapshot() : null);
         activity.setMetaVersion(META_VERSION);
         activity.setMeta(meta);
-        groupActivityRepository.save(activity);
+        return groupActivityRepository.save(activity);
     }
 
     private ActivityUserRef requireUserRef(ActivityUserRef userRef) {
@@ -297,6 +314,7 @@ public class ActivityService {
     private GroupActivityDto toDto(GroupActivity activity) {
         return switch (activity.getType()) {
             case STRICH_INCREMENTED -> toStrichIncrementedDto(activity);
+            case STRICH_INCREMENT_UNDONE -> toStrichIncrementUndoneDto(activity);
             case STRICHE_DEDUCTED -> toStricheDeductedDto(activity);
             case MONEY_DEDUCTED -> toMoneyDeductedDto(activity);
             case USER_JOINED_GROUP -> applyBaseFields(activity, new UserJoinedGroupActivityDto());
@@ -315,6 +333,16 @@ public class ActivityService {
         StrichIncrementedGroupActivityDto dto = applyBaseFields(activity, new StrichIncrementedGroupActivityDto());
         dto.setAmount(readRequiredInteger(meta, "amount", activity.getType()));
         dto.setMode(readRequiredBookingMode(meta, "mode", activity.getType()));
+        return dto;
+    }
+
+    private StrichIncrementUndoneGroupActivityDto toStrichIncrementUndoneDto(GroupActivity activity) {
+        Map<String, Object> meta = activity.getMeta();
+        StrichIncrementUndoneGroupActivityDto dto = applyBaseFields(activity, new StrichIncrementUndoneGroupActivityDto());
+        dto.setAmount(readRequiredInteger(meta, "amount", activity.getType()));
+        dto.setMode(readRequiredBookingMode(meta, "mode", activity.getType()));
+        dto.setIncrementRequestId(readRequiredLong(meta, "incrementRequestId", activity.getType()));
+        dto.setOriginalActivityId(readRequiredLong(meta, "originalActivityId", activity.getType()));
         return dto;
     }
 
@@ -373,6 +401,14 @@ public class ActivityService {
         Object value = meta.get(key);
         if (value instanceof Number number) {
             return number.intValue();
+        }
+        throw invalidActivityPayload(activityType, key);
+    }
+
+    private long readRequiredLong(Map<String, Object> meta, String key, ActivityType activityType) {
+        Object value = meta.get(key);
+        if (value instanceof Number number) {
+            return number.longValue();
         }
         throw invalidActivityPayload(activityType, key);
     }
