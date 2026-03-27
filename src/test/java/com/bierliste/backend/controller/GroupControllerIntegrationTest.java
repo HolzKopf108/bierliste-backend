@@ -838,7 +838,7 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
-    void undoCounterIncrementReturnsConflictWhenTheBookedStricheWereAlreadyConsumed() throws Exception {
+    void undoCounterIncrementCanCreateCreditWhenTheBookedStricheWereAlreadyConsumed() throws Exception {
         User admin = createUser("undo-consumed-admin@example.com", "UndoAdmin");
         Group group = createGroup("Undo Consumed", admin);
 
@@ -864,12 +864,14 @@ class GroupControllerIntegrationTest {
 
         mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/counter/increments/" + incrementRequestId + "/undo")
                 .header("Authorization", "Bearer " + token))
-            .andExpect(status().isConflict())
+            .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.error").value("Strich-Request kann nicht mehr rückgängig gemacht werden"));
+            .andExpect(jsonPath("$.count").value(-1))
+            .andExpect(jsonPath("$.incrementRequestId").value(incrementRequestId))
+            .andExpect(jsonPath("$.undoneAt").isNotEmpty());
 
         int updatedCount = groupMemberRepository.findStrichCountByGroup_IdAndUser_Id(group.getId(), admin.getId()).orElseThrow();
-        assertThat(updatedCount).isZero();
+        assertThat(updatedCount).isEqualTo(-1);
     }
 
     @Test

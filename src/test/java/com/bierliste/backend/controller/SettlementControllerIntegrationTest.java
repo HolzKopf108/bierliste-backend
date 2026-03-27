@@ -135,7 +135,7 @@ class SettlementControllerIntegrationTest {
     }
 
     @Test
-    void createMoneySettlementAllowsPartialAmountWhenArbitraryAmountsAreEnabledAndKeepsStrichCount() throws Exception {
+    void createMoneySettlementAllowsPartialAmountWhenArbitraryAmountsAreEnabledAndPersistsFullPayment() throws Exception {
         User admin = createUser("money-arbitrary-admin@example.com", "MoneyAdmin");
         User target = createUser("money-arbitrary-target@example.com", "MoneyTarget");
         Group group = createGroup("Money Arbitrary Gruppe", admin);
@@ -160,11 +160,15 @@ class SettlementControllerIntegrationTest {
 
         GroupMember updatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
         assertThat(updatedMembership.getStrichCount()).isEqualTo(1);
-        assertThat(settlementRepository.count()).isZero();
+        assertThat(settlementRepository.count()).isEqualTo(1);
+
+        Settlement settlement = settlementRepository.findAll().getFirst();
+        assertThat(settlement.getType()).isEqualTo(SettlementType.MONEY);
+        assertThat(settlement.getMoneyAmount()).isEqualByComparingTo("1.00");
     }
 
     @Test
-    void createMoneySettlementRoundsDownAndStoresOnlyAppliedFullStricheWhenArbitraryAmountsAreEnabled() throws Exception {
+    void createMoneySettlementRoundsDownToFullStricheAndKeepsRemainingAmountAsLost() throws Exception {
         User admin = createUser("money-floor-admin@example.com", "MoneyAdmin");
         User target = createUser("money-floor-target@example.com", "MoneyTarget");
         Group group = createGroup("Money Floor Gruppe", admin);
@@ -197,11 +201,11 @@ class SettlementControllerIntegrationTest {
         assertThat(settlementRepository.count()).isEqualTo(1);
         Settlement settlement = settlementRepository.findAll().getFirst();
         assertThat(settlement.getType()).isEqualTo(SettlementType.MONEY);
-        assertThat(settlement.getMoneyAmount()).isEqualByComparingTo("1.50");
+        assertThat(settlement.getMoneyAmount()).isEqualByComparingTo("2.99");
     }
 
     @Test
-    void createMoneySettlementDoesNotGoNegativeWhenPaymentExceedsDebt() throws Exception {
+    void createMoneySettlementAllowsCreditWhenPaymentExceedsDebt() throws Exception {
         User admin = createUser("money-overpay-admin@example.com", "MoneyOverpayAdmin");
         User target = createUser("money-overpay-target@example.com", "MoneyOverpayTarget");
         Group group = createGroup("Money Overpay Gruppe", admin);
@@ -218,10 +222,40 @@ class SettlementControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("amount", 10.00))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.strichCount").value(0));
+            .andExpect(jsonPath("$.strichCount").value(-8));
 
         GroupMember updatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
-        assertThat(updatedMembership.getStrichCount()).isZero();
+        assertThat(updatedMembership.getStrichCount()).isEqualTo(-8);
+    }
+
+    @Test
+    void createMoneySettlementCreatesNegativeCreditFromZeroWhenAmountExceedsFullStricheThreshold() throws Exception {
+        User admin = createUser("money-credit-admin@example.com", "MoneyCreditAdmin");
+        User target = createUser("money-credit-target@example.com", "MoneyCreditTarget");
+        Group group = createGroup("Money Credit Gruppe", admin);
+        group.setPricePerStrich(new BigDecimal("1.50"));
+        group.setAllowArbitraryMoneySettlements(true);
+        groupRepository.save(group);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        GroupMember targetMembership = createMembership(group, target, GroupRole.MEMBER);
+        targetMembership.setStrichCount(0);
+        groupMemberRepository.save(targetMembership);
+
+        String token = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/members/" + target.getId() + "/settlements/money")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("amount", 4.00))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.strichCount").value(-2));
+
+        GroupMember updatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
+        assertThat(updatedMembership.getStrichCount()).isEqualTo(-2);
+
+        Settlement settlement = settlementRepository.findAll().getFirst();
+        assertThat(settlement.getMoneyAmount()).isEqualByComparingTo("4.00");
     }
 
     @Test
@@ -376,7 +410,7 @@ class SettlementControllerIntegrationTest {
     }
 
     @Test
-    void createStricheSettlementDoesNotGoNegative() throws Exception {
+    void createStricheSettlementAllowsCreditWhenMoreStricheAreSettledThanCurrentlyOwed() throws Exception {
         User admin = createUser("striche-negative-admin@example.com", "StricheAdmin");
         User target = createUser("striche-negative-target@example.com", "StricheTarget");
         Group group = createGroup("Striche Zero", admin);
@@ -393,10 +427,10 @@ class SettlementControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("amount", 5))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.strichCount").value(0));
+            .andExpect(jsonPath("$.strichCount").value(-3));
 
         GroupMember updatedMembership = groupMemberRepository.findByGroup_IdAndUser_Id(group.getId(), target.getId()).orElseThrow();
-        assertThat(updatedMembership.getStrichCount()).isZero();
+        assertThat(updatedMembership.getStrichCount()).isEqualTo(-3);
     }
 
     @Test

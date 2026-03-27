@@ -109,7 +109,7 @@ class GroupServiceIntegrationTest {
     }
 
     @Test
-    void groupMemberRejectsNegativeStrichCount() {
+    void groupMemberAllowsNegativeStrichCount() {
         User user = createUser("invalid-counter@example.com", "invalid-counter");
         Group group = createGroup("Ungueltiger Counter", user);
 
@@ -119,8 +119,9 @@ class GroupServiceIntegrationTest {
         invalidMembership.setRole(GroupRole.ADMIN);
         invalidMembership.setStrichCount(-1);
 
-        assertThatThrownBy(() -> groupMemberRepository.saveAndFlush(invalidMembership))
-            .isInstanceOf(ConstraintViolationException.class);
+        GroupMember persistedMembership = groupMemberRepository.saveAndFlush(invalidMembership);
+
+        assertThat(persistedMembership.getStrichCount()).isEqualTo(-1);
     }
 
     @Test

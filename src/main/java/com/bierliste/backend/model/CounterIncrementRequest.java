@@ -12,7 +12,6 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
 import java.time.Instant;
 import org.hibernate.annotations.Check;
 import org.hibernate.annotations.ColumnDefault;
@@ -27,21 +26,23 @@ import org.hibernate.annotations.ColumnDefault;
         @Index(name = "idx_counter_increment_requests_undo_expires", columnList = "undo_expires_at")
     }
 )
-@Check(constraints = """
-    group_id > 0
-    and actor_user_id > 0
-    and target_user_id > 0
-    and amount >= 1
-    and increment_activity_id > 0
-    and undo_expires_at >= created_at
-    and (undo_activity_id is null or undo_activity_id > 0)
-    and (count_after_undo is null or count_after_undo >= 0)
-    and (
-        (undone_at is null and undo_activity_id is null and count_after_undo is null)
-        or
-        (undone_at is not null and undo_activity_id is not null and count_after_undo is not null)
-    )
-    """)
+@Check(
+    name = "ck_counter_increment_requests_state",
+    constraints = """
+        group_id > 0
+        and actor_user_id > 0
+        and target_user_id > 0
+        and amount >= 1
+        and increment_activity_id > 0
+        and undo_expires_at >= created_at
+        and (undo_activity_id is null or undo_activity_id > 0)
+        and (
+            (undone_at is null and undo_activity_id is null and count_after_undo is null)
+            or
+            (undone_at is not null and undo_activity_id is not null and count_after_undo is not null)
+        )
+        """
+)
 public class CounterIncrementRequest {
 
     @Id
@@ -94,7 +95,6 @@ public class CounterIncrementRequest {
     @Column(name = "undo_activity_id")
     private Long undoActivityId;
 
-    @PositiveOrZero
     @Column(name = "count_after_undo")
     private Integer countAfterUndo;
 

@@ -1,7 +1,7 @@
 package com.bierliste.backend.dto;
 
 import com.bierliste.backend.model.GroupRole;
-
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 public class GroupMemberDto {
@@ -10,6 +10,7 @@ public class GroupMemberDto {
     private String username;
     private Instant joinedAt;
     private GroupRole role;
+    @Schema(description = "Aktueller Strichsaldo. Positiv bedeutet Schulden, negativ bedeutet Guthaben.")
     private int strichCount;
 
     public GroupMemberDto() {

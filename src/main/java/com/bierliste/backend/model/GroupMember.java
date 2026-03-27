@@ -1,7 +1,6 @@
 package com.bierliste.backend.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.PositiveOrZero;
 import java.time.Instant;
 import org.hibernate.annotations.Check;
 import org.hibernate.annotations.ColumnDefault;
@@ -17,15 +16,17 @@ import org.hibernate.annotations.ColumnDefault;
         @Index(name = "idx_group_members_user", columnList = "user_id")
     }
 )
-@Check(constraints = """
-    strich_count >= 0
-    and role in ('MEMBER', 'ADMIN')
-    and (
-        (active = true and left_at is null)
-        or
-        (active = false and left_at is not null)
-    )
-    """)
+@Check(name = "ck_group_members_role", constraints = "role in ('MEMBER', 'ADMIN')")
+@Check(
+    name = "ck_group_members_active_state",
+    constraints = """
+        (
+            (active = true and left_at is null)
+            or
+            (active = false and left_at is not null)
+        )
+        """
+)
 public class GroupMember {
 
     @Id
@@ -49,7 +50,6 @@ public class GroupMember {
     @Column(nullable = false, updatable = false)
     private Instant joinedAt = Instant.now();
 
-    @PositiveOrZero
     @ColumnDefault("0")
     @Column(name = "strich_count", nullable = false)
     private int strichCount = 0;

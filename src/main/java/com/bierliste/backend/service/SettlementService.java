@@ -58,23 +58,21 @@ public class SettlementService {
             group.isAllowArbitraryMoneySettlements()
         );
 
-        if (calculation.appliedStrichCount() > 0) {
-            Settlement settlement = new Settlement();
-            settlement.setGroupId(groupId);
-            settlement.setTargetUserId(targetUserId);
-            settlement.setActorUserId(actor.getId());
-            settlement.setType(SettlementType.MONEY);
-            settlement.setMoneyAmount(calculation.appliedAmount());
-            settlementRepository.save(settlement);
+        Settlement settlement = new Settlement();
+        settlement.setGroupId(groupId);
+        settlement.setTargetUserId(targetUserId);
+        settlement.setActorUserId(actor.getId());
+        settlement.setType(SettlementType.MONEY);
+        settlement.setMoneyAmount(calculation.bookedAmount());
+        settlementRepository.save(settlement);
 
-            activityService.logMoneyDeducted(
-                groupId,
-                ActivityUserRef.from(actor),
-                ActivityUserRef.from(targetMembership.getUser()),
-                calculation.appliedAmount(),
-                pricePerStrich
-            );
-        }
+        activityService.logMoneyDeducted(
+            groupId,
+            ActivityUserRef.from(actor),
+            ActivityUserRef.from(targetMembership.getUser()),
+            calculation.bookedAmount(),
+            pricePerStrich
+        );
 
         targetMembership.setStrichCount(calculation.newStrichCount());
 
@@ -86,26 +84,22 @@ public class SettlementService {
         requireWartGroup(groupId, actor);
         GroupMember targetMembership = requireTargetMembership(groupId, targetUserId);
 
-        int appliedStricheAmount = Math.min(targetMembership.getStrichCount(), dto.getAmount());
+        Settlement settlement = new Settlement();
+        settlement.setGroupId(groupId);
+        settlement.setTargetUserId(targetUserId);
+        settlement.setActorUserId(actor.getId());
+        settlement.setType(SettlementType.STRICHE);
+        settlement.setStricheAmount(dto.getAmount());
+        settlementRepository.save(settlement);
 
-        if (appliedStricheAmount > 0) {
-            Settlement settlement = new Settlement();
-            settlement.setGroupId(groupId);
-            settlement.setTargetUserId(targetUserId);
-            settlement.setActorUserId(actor.getId());
-            settlement.setType(SettlementType.STRICHE);
-            settlement.setStricheAmount(appliedStricheAmount);
-            settlementRepository.save(settlement);
+        activityService.logStricheDeducted(
+            groupId,
+            ActivityUserRef.from(actor),
+            ActivityUserRef.from(targetMembership.getUser()),
+            dto.getAmount()
+        );
 
-            activityService.logStricheDeducted(
-                groupId,
-                ActivityUserRef.from(actor),
-                ActivityUserRef.from(targetMembership.getUser()),
-                appliedStricheAmount
-            );
-        }
-
-        int newStrichCount = targetMembership.getStrichCount() - appliedStricheAmount;
+        int newStrichCount = targetMembership.getStrichCount() - dto.getAmount();
         targetMembership.setStrichCount(newStrichCount);
 
         return toGroupMemberDto(targetMembership);
@@ -140,16 +134,10 @@ public class SettlementService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, INVALID_MONEY_MULTIPLE_MESSAGE);
         }
 
-        if (currentStrichCount <= 0) {
-            return new MoneySettlementCalculation(0, 0, BigDecimal.ZERO);
-        }
+        int creditedStrichCount = amount.divideToIntegralValue(pricePerStrich).intValueExact();
+        int newStrichCount = currentStrichCount - creditedStrichCount;
 
-        int requestedStrichCount = amount.divideToIntegralValue(pricePerStrich).intValueExact();
-        int appliedStrichCount = Math.min(currentStrichCount, requestedStrichCount);
-        int newStrichCount = currentStrichCount - appliedStrichCount;
-        BigDecimal appliedAmount = pricePerStrich.multiply(BigDecimal.valueOf(appliedStrichCount));
-
-        return new MoneySettlementCalculation(newStrichCount, appliedStrichCount, appliedAmount);
+        return new MoneySettlementCalculation(newStrichCount, creditedStrichCount, amount);
     }
 
     private GroupMemberDto toGroupMemberDto(GroupMember membership) {
@@ -162,6 +150,6 @@ public class SettlementService {
         );
     }
 
-    private record MoneySettlementCalculation(int newStrichCount, int appliedStrichCount, BigDecimal appliedAmount) {
+    private record MoneySettlementCalculation(int newStrichCount, int creditedStrichCount, BigDecimal bookedAmount) {
     }
 }

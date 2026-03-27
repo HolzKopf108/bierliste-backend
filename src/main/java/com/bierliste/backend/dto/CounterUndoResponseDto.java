@@ -1,9 +1,11 @@
 package com.bierliste.backend.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 public class CounterUndoResponseDto {
 
+    @Schema(description = "Aktueller Strichsaldo nach dem Undo. Positiv bedeutet Schulden, negativ bedeutet Guthaben.")
     private int count;
     private Long incrementRequestId;
     private Instant undoneAt;

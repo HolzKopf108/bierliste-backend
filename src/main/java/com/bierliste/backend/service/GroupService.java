@@ -223,10 +223,6 @@ public class GroupService {
         GroupMember targetMembership = groupMemberRepository.findByGroup_IdAndUser_IdForUpdate(groupId, incrementRequest.getTargetUserId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, INCREMENT_REQUEST_NOT_REVERSIBLE_MESSAGE));
 
-        if (targetMembership.getStrichCount() < incrementRequest.getAmount()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, INCREMENT_REQUEST_NOT_REVERSIBLE_MESSAGE);
-        }
-
         targetMembership.setStrichCount(targetMembership.getStrichCount() - incrementRequest.getAmount());
 
         GroupActivity undoActivity = activityService.logStrichIncrementUndone(

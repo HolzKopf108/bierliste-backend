@@ -1,7 +1,10 @@
 package com.bierliste.backend.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public class CounterResponseDto {
 
+    @Schema(description = "Aktueller Strichsaldo. Positiv bedeutet Schulden, negativ bedeutet Guthaben.")
     private int count;
 
     public CounterResponseDto() {
