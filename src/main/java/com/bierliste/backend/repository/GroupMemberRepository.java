@@ -113,4 +113,33 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
         order by u.username, u.id
         """)
     List<GroupMemberDto> findActiveMemberDtosByGroupId(@Param("groupId") Long groupId);
+
+    @Query("""
+        select gm
+        from GroupMember gm
+        join fetch gm.user u
+        where gm.group.id = :groupId and gm.active = true
+        order by u.username, u.id
+        """)
+    List<GroupMember> findActiveMembersByGroupIdOrderByUsername(@Param("groupId") Long groupId);
+
+    @Query("""
+        select gm
+        from GroupMember gm
+        join fetch gm.user u
+        join fetch gm.group g
+        where g.id = :groupId and gm.active = true
+          and exists (
+              select 1
+              from GroupMember requester
+              where requester.group.id = :groupId
+                and requester.user.id = :requesterUserId
+                and requester.active = true
+          )
+        order by u.username, u.id
+        """)
+    List<GroupMember> findVisibleActiveMembersByGroupIdForUser(
+        @Param("groupId") Long groupId,
+        @Param("requesterUserId") Long requesterUserId
+    );
 }

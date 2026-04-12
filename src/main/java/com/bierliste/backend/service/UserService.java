@@ -25,6 +25,7 @@ public class UserService {
     private final UserSettingsService userSettingsService;
     private final VerificationTokenRepository verificationTokenRepository;
     private final GroupService groupService;
+    private final AndroidPushTokenService androidPushTokenService;
 
     public UserService(
         UserRepository userRepo, 
@@ -32,7 +33,8 @@ public class UserService {
         RefreshTokenService refreshService,
         UserSettingsService userSettingsService,
         VerificationTokenRepository verificationTokenRepository,
-        GroupService groupService
+        GroupService groupService,
+        AndroidPushTokenService androidPushTokenService
     ) {
         this.userRepo = userRepo;
         this.pwdEnc = pwdEnc;
@@ -40,6 +42,7 @@ public class UserService {
         this.userSettingsService = userSettingsService;
         this.verificationTokenRepository = verificationTokenRepository;
         this.groupService = groupService;
+        this.androidPushTokenService = androidPushTokenService;
     }
 
     public UserDto getUser(User user) {
@@ -90,6 +93,7 @@ public class UserService {
         userSettingsService.deleteUser(persistedUser);
         refreshService.deleteUser(persistedUser);
         verificationTokenRepository.deleteByUser(persistedUser);
+        androidPushTokenService.deleteTokensForUser(persistedUser);
 
         anonymizeUser(persistedUser);
         userRepo.save(persistedUser);
@@ -109,6 +113,7 @@ public class UserService {
         userSettingsService.deleteUser(user);
         refreshService.deleteUser(user);
         verificationTokenRepository.deleteByUser(user);
+        androidPushTokenService.deleteTokensForUser(user);
         userRepo.delete(user);
     }
 

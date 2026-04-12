@@ -52,6 +52,7 @@ public class GroupService {
     private final UserRepository userRepository;
     private final GroupAuthorizationService groupAuthorizationService;
     private final ActivityService activityService;
+    private final GroupMemberNotificationService groupMemberNotificationService;
     private final Duration counterUndoWindow;
 
     public GroupService(GroupRepository groupRepository,
@@ -61,7 +62,8 @@ public class GroupService {
                         UserRepository userRepository,
                         GroupAuthorizationService groupAuthorizationService,
                         @Value("${app.counter.undo-window:PT30S}") Duration counterUndoWindow,
-                        ActivityService activityService) {
+                        ActivityService activityService,
+                        GroupMemberNotificationService groupMemberNotificationService) {
         this.groupRepository = groupRepository;
         this.groupInviteRepository = groupInviteRepository;
         this.counterIncrementRequestRepository = counterIncrementRequestRepository;
@@ -73,6 +75,7 @@ public class GroupService {
         }
         this.counterUndoWindow = counterUndoWindow;
         this.activityService = activityService;
+        this.groupMemberNotificationService = groupMemberNotificationService;
     }
 
     @Transactional
@@ -115,9 +118,36 @@ public class GroupService {
     }
 
     public List<GroupMemberDto> getGroupMembersForUser(Long groupId, User user) {
-        groupAuthorizationService.requireMember(groupId, user);
+        Long requesterUserId = groupAuthorizationService.requireAuthenticatedUserId(user);
+        List<GroupMember> memberships = groupMemberRepository.findVisibleActiveMembersByGroupIdForUser(groupId, requesterUserId);
+        if (memberships.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, GROUP_NOT_FOUND_MESSAGE);
+        }
 
-        return groupMemberRepository.findActiveMemberDtosByGroupId(groupId);
+        GroupMember requesterMembership = memberships.stream()
+            .filter(membership -> membership.getUser().getId().equals(requesterUserId))
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, GROUP_NOT_FOUND_MESSAGE));
+        Group group = requesterMembership.getGroup();
+        boolean requesterIsAdmin = requesterMembership.getRole() == GroupRole.ADMIN;
+        List<Long> notificationStatusVisibleUserIds = requesterIsAdmin
+            ? memberships.stream().map(membership -> membership.getUser().getId()).toList()
+            : List.of(requesterUserId);
+        Map<Long, GroupMemberNotificationService.NotificationStatus> notificationStatuses =
+            groupMemberNotificationService.getLatestStatusByTargetUserId(
+                groupId,
+                notificationStatusVisibleUserIds
+            );
+
+        return memberships.stream()
+            .map(membership -> toGroupMemberDto(
+                membership,
+                group,
+                isNotificationStatusVisible(requesterUserId, requesterIsAdmin, membership)
+                    ? notificationStatuses.get(membership.getUser().getId())
+                    : null
+            ))
+            .toList();
     }
 
     public int getOwnCounterForGroup(Long groupId, User user) {
@@ -434,6 +464,34 @@ public class GroupService {
             membership.getRole(),
             membership.getStrichCount()
         );
+    }
+
+    private GroupMemberDto toGroupMemberDto(
+        GroupMember membership,
+        Group group,
+        GroupMemberNotificationService.NotificationStatus notificationStatus
+    ) {
+        BigDecimal outstandingAmount = BigDecimal.ZERO;
+        if (membership.getStrichCount() > 0 && group.getPricePerStrich() != null) {
+            outstandingAmount = group.getPricePerStrich().multiply(BigDecimal.valueOf(membership.getStrichCount()));
+        }
+
+        return new GroupMemberDto(
+            membership.getUser().getId(),
+            membership.getUser().getUsername(),
+            membership.getJoinedAt(),
+            membership.getRole(),
+            membership.getStrichCount(),
+            outstandingAmount,
+            notificationStatus != null && notificationStatus.canReceiveNotification(),
+            notificationStatus != null && notificationStatus.hasPendingNotification(),
+            notificationStatus != null ? notificationStatus.lastNotificationSentAt() : null,
+            notificationStatus != null ? notificationStatus.lastNotificationConfirmedAt() : null
+        );
+    }
+
+    private boolean isNotificationStatusVisible(Long requesterUserId, boolean requesterIsAdmin, GroupMember membership) {
+        return requesterIsAdmin || membership.getUser().getId().equals(requesterUserId);
     }
 
     private GroupDto toGroupDto(Group group) {

@@ -64,7 +64,10 @@ public class SecurityConfig {
                     mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}"),
                     mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}/settings"),
                     mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}/members"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/members/{targetUserId}/notifications"),
                     mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}/activities"),
+                    mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}/notifications/me"),
+                    mvc.matcher(HttpMethod.POST, "/api/v1/groups/{groupId}/notifications/{notificationId}/confirm"),
                     mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}/me/counter"),
                     mvc.matcher(HttpMethod.GET, "/api/v1/groups/{groupId}/me/role"),
                     mvc.matcher(HttpMethod.PUT, "/api/v1/groups/{groupId}/settings"),
@@ -86,7 +89,9 @@ public class SecurityConfig {
                     mvc.matcher(HttpMethod.DELETE, "/api/v1/user/delete/account"),
                     mvc.matcher(HttpMethod.GET, "/api/v1/user/settings"),
                     mvc.matcher(HttpMethod.PUT, "/api/v1/user/settings"),
-                    mvc.matcher(HttpMethod.POST, "/api/v1/user/settings/verifyPassword")
+                    mvc.matcher(HttpMethod.POST, "/api/v1/user/settings/verifyPassword"),
+                    mvc.matcher(HttpMethod.PUT, "/api/v1/user/notifications/android"),
+                    mvc.matcher(HttpMethod.DELETE, "/api/v1/user/notifications/android")
                 ).authenticated()
                 .anyRequest().permitAll()
             )
