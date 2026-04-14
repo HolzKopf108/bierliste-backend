@@ -54,8 +54,8 @@ public class Group {
     @Column(nullable = false, length = 30)
     private GroupInvitePermission invitePermission = GroupInvitePermission.ONLY_WARTS;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "created_by_user_id", nullable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
     private User createdByUser;
 
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -276,6 +276,35 @@ class GroupControllerIntegrationTest {
     }
 
     @Test
+    void groupMembersAndSettingsResponsesContainNoEmails() throws Exception {
+        User admin = createUser("group-pii-admin@example.com", "PiiAdmin");
+        User member = createUser("group-pii-member@example.com", "PiiMember");
+        Group group = createGroup("PII Gruppe", admin);
+        group.setInvitePermission(GroupInvitePermission.ALL_MEMBERS);
+        groupRepository.save(group);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+
+        String token = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$[0].email").doesNotExist())
+            .andExpect(jsonPath("$[1].email").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/groups/" + group.getId() + "/settings")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.email").doesNotExist())
+            .andExpect(jsonPath("$.createdByUserId").doesNotExist())
+            .andExpect(jsonPath("$.username").doesNotExist());
+    }
+
+    @Test
     void getGroupSettingsReturnsNotFoundForNonMember() throws Exception {
         User admin = createUser("group-settings-non-member-admin@example.com");
         User nonMember = createUser("group-settings-non-member@example.com");

@@ -1,14 +1,18 @@
 package com.bierliste.backend.repository;
 
 import com.bierliste.backend.model.Group;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.repository.query.Param;
-
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.repository.query.Param;
 
 public interface GroupRepository extends JpaRepository<Group, Long> {
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "update groups set created_by_user_id = null where created_by_user_id = :userId", nativeQuery = true)
+    int clearCreatedByUserId(@Param("userId") Long userId);
 
     @Query("""
         select distinct g

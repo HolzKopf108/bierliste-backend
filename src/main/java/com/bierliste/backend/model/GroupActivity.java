@@ -29,15 +29,14 @@ import org.hibernate.annotations.ColumnDefault;
         @Index(name = "idx_group_activities_target_user", columnList = "target_user_id")
     }
 )
-@Check(constraints = """
+@Check(name = "ck_group_activities_actor_target_state", constraints = """
     group_id > 0
-    and actor_user_id > 0
     and meta_version >= 1
+    and (actor_user_id is null or actor_user_id > 0)
     and (target_user_id is null or target_user_id > 0)
     and (
-        (target_user_id is null and target_username_snapshot is null)
-        or
-        (target_user_id is not null and target_username_snapshot is not null)
+        (target_user_id is null and target_display_name_snapshot is null)
+        or target_display_name_snapshot is not null
     )
     """)
 public class GroupActivity {
@@ -56,21 +55,19 @@ public class GroupActivity {
     @Column(name = "activity_timestamp", nullable = false, updatable = false)
     private Instant timestamp = Instant.now();
 
-    @NotNull
-    @Positive
-    @Column(name = "actor_user_id", nullable = false)
+    @Column(name = "actor_user_id")
     private Long actorUserId;
 
     @NotBlank
-    @Column(name = "actor_username_snapshot", nullable = false, length = 50)
-    private String actorUsernameSnapshot;
+    @Column(name = "actor_display_name_snapshot", nullable = false, length = 50)
+    private String actorDisplayNameSnapshot;
 
     @Positive
     @Column(name = "target_user_id")
     private Long targetUserId;
 
-    @Column(name = "target_username_snapshot", length = 50)
-    private String targetUsernameSnapshot;
+    @Column(name = "target_display_name_snapshot", length = 50)
+    private String targetDisplayNameSnapshot;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -116,12 +113,12 @@ public class GroupActivity {
         this.actorUserId = actorUserId;
     }
 
-    public String getActorUsernameSnapshot() {
-        return actorUsernameSnapshot;
+    public String getActorDisplayNameSnapshot() {
+        return actorDisplayNameSnapshot;
     }
 
-    public void setActorUsernameSnapshot(String actorUsernameSnapshot) {
-        this.actorUsernameSnapshot = actorUsernameSnapshot;
+    public void setActorDisplayNameSnapshot(String actorDisplayNameSnapshot) {
+        this.actorDisplayNameSnapshot = actorDisplayNameSnapshot;
     }
 
     public Long getTargetUserId() {
@@ -132,12 +129,12 @@ public class GroupActivity {
         this.targetUserId = targetUserId;
     }
 
-    public String getTargetUsernameSnapshot() {
-        return targetUsernameSnapshot;
+    public String getTargetDisplayNameSnapshot() {
+        return targetDisplayNameSnapshot;
     }
 
-    public void setTargetUsernameSnapshot(String targetUsernameSnapshot) {
-        this.targetUsernameSnapshot = targetUsernameSnapshot;
+    public void setTargetDisplayNameSnapshot(String targetDisplayNameSnapshot) {
+        this.targetDisplayNameSnapshot = targetDisplayNameSnapshot;
     }
 
     public ActivityType getType() {

@@ -2,7 +2,6 @@ package com.bierliste.backend.service;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -26,6 +25,7 @@ public class UserService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final GroupService groupService;
     private final AndroidPushTokenService androidPushTokenService;
+    private final ActivityService activityService;
 
     public UserService(
         UserRepository userRepo, 
@@ -34,7 +34,8 @@ public class UserService {
         UserSettingsService userSettingsService,
         VerificationTokenRepository verificationTokenRepository,
         GroupService groupService,
-        AndroidPushTokenService androidPushTokenService
+        AndroidPushTokenService androidPushTokenService,
+        ActivityService activityService
     ) {
         this.userRepo = userRepo;
         this.pwdEnc = pwdEnc;
@@ -43,6 +44,7 @@ public class UserService {
         this.verificationTokenRepository = verificationTokenRepository;
         this.groupService = groupService;
         this.androidPushTokenService = androidPushTokenService;
+        this.activityService = activityService;
     }
 
     public UserDto getUser(User user) {
@@ -90,13 +92,14 @@ public class UserService {
             .orElseThrow(() -> new UsernameNotFoundException("Benutzer nicht gefunden"));
 
         groupService.removeUserFromAllGroups(persistedUser);
+        activityService.anonymizeUserInAllGroupHistories(persistedUser.getId());
+        groupService.clearCreatedByUserFromOwnedGroups(persistedUser);
+        groupService.deleteAllMembershipsForUser(persistedUser);
         userSettingsService.deleteUser(persistedUser);
         refreshService.deleteUser(persistedUser);
         verificationTokenRepository.deleteByUser(persistedUser);
         androidPushTokenService.deleteTokensForUser(persistedUser);
-
-        anonymizeUser(persistedUser);
-        userRepo.save(persistedUser);
+        userRepo.delete(persistedUser);
     }
 
     @Transactional
@@ -117,13 +120,4 @@ public class UserService {
         userRepo.delete(user);
     }
 
-    private void anonymizeUser(User user) {
-        user.setEmail("deleted-user-" + user.getId() + "@deleted.local");
-        user.setUsername("Gelöschter Benutzer");
-        user.setPasswordHash(pwdEnc.encode(UUID.randomUUID().toString()));
-        user.setEmailVerified(false);
-        user.setGoogleUser(false);
-        user.setDeleted(true);
-        user.setLastUpdated(Instant.now());
-    }
 }

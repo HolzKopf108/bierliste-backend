@@ -66,6 +66,15 @@ Hinweis: Es gibt keine Migrationen (Flyway/Liquibase). Das Schema wird via `spri
 - `POST /api/v1/groups/{groupId}/roles/demote` ist ebenfalls idempotent, solange noch mindestens ein `ADMIN` in der Gruppe verbleibt.
 - Der letzte verbleibende `ADMIN` kann nicht demoted werden; der Endpoint liefert dann HTTP 409 mit `{"error":"Mindestens ein Wart muss in der Gruppe verbleiben"}`.
 
+### Gruppenverlauf & Datenschutz
+- `GroupActivity` speichert im Verlauf keine E-Mail-Adressen.
+- Personenbeziehbare Felder im Verlauf sind nur `actorUserId`, `targetUserId`, `actorDisplayNameSnapshot` und `targetDisplayNameSnapshot`.
+- Snapshots werden beim Erzeugen eines Events aus dem aktuellen Username des Users geschrieben. Das gilt fuer Join-, Leave-, Remove-, Increment-, Settlement-, Settings- und Rollen-Events.
+- Username-Aenderungen wirken nicht rueckwirkend auf bestehende Verlaufseintraege. Alte Events behalten ihren damaligen Snapshot, neue Events verwenden den neuen Namen.
+- Beim Verlassen oder Entfernen aus einer Gruppe werden alle Verlaufseintraege dieser Gruppe, die den User als Actor oder Target referenzieren, auf `Ehemaliges Mitglied` anonymisiert. Die zugehoerigen `actorUserId`/`targetUserId` werden dabei auf `null` gesetzt.
+- Bei der Account-Loeschung werden zuerst alle aktiven Memberships beendet, danach alle verbleibenden Verlaufseintraege ueber alle Gruppen hinweg anonymisiert, anschliessend wird die `createdByUser`-Referenz in verbleibenden Gruppen des Users entfernt und erst dann der User-Datensatz mitsamt Settings, Tokens und Verifikationsdaten geloescht.
+- Gruppen-Responses bleiben PII-arm: Members liefern Username plus IDs, Activities liefern Snapshots plus optionale IDs, Group-Settings enthalten keine userbezogenen Daten. E-Mail-Adressen tauchen in Gruppen-DTOs nicht auf.
+
 ## API
 Basis-Pfad: `/api/v1`  
 Content-Type: `application/json`  

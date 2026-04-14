@@ -3,14 +3,14 @@ package com.bierliste.backend.dto;
 public class GroupActivityUserDto {
 
     private Long userId;
-    private String usernameSnapshot;
+    private String displayNameSnapshot;
 
     public GroupActivityUserDto() {
     }
 
-    public GroupActivityUserDto(Long userId, String usernameSnapshot) {
+    public GroupActivityUserDto(Long userId, String displayNameSnapshot) {
         this.userId = userId;
-        this.usernameSnapshot = usernameSnapshot;
+        this.displayNameSnapshot = displayNameSnapshot;
     }
 
     public Long getUserId() {
@@ -21,11 +21,11 @@ public class GroupActivityUserDto {
         this.userId = userId;
     }
 
-    public String getUsernameSnapshot() {
-        return usernameSnapshot;
+    public String getDisplayNameSnapshot() {
+        return displayNameSnapshot;
     }
 
-    public void setUsernameSnapshot(String usernameSnapshot) {
-        this.usernameSnapshot = usernameSnapshot;
+    public void setDisplayNameSnapshot(String displayNameSnapshot) {
+        this.displayNameSnapshot = displayNameSnapshot;
     }
 }

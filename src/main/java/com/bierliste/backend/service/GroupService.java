@@ -275,10 +275,7 @@ public class GroupService {
     @Transactional
     public void leaveGroup(Long groupId, User user) {
         GroupMember membership = groupAuthorizationService.requireMemberEntity(groupId, user);
-        ActivityUserRef leavingUserRef = ActivityUserRef.from(membership.getUser());
-
-        deactivateMembershipAndCleanupGroup(membership);
-        activityService.logUserLeftGroup(groupId, leavingUserRef);
+        leaveMembership(membership, ActivityUserRef.from(membership.getUser()));
     }
 
     @Transactional
@@ -297,6 +294,7 @@ public class GroupService {
 
         deactivateMembershipAndCleanupGroup(targetMembership);
         activityService.logUserRemovedFromGroup(groupId, actorUserRef, targetUserRef);
+        activityService.anonymizeUserInGroupHistory(groupId, targetUserRef.userId());
     }
 
     @Transactional
@@ -352,9 +350,27 @@ public class GroupService {
         ActivityUserRef userRef = ActivityUserRef.from(user);
         List<GroupMember> memberships = groupMemberRepository.findAllByUser_IdAndActiveTrue(userId);
         for (GroupMember membership : memberships) {
-            deactivateMembershipAndCleanupGroup(membership);
-            activityService.logUserLeftGroup(membership.getGroup().getId(), userRef);
+            leaveMembership(membership, userRef);
         }
+    }
+
+    @Transactional
+    public void clearCreatedByUserFromOwnedGroups(User user) {
+        Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
+        groupRepository.clearCreatedByUserId(userId);
+    }
+
+    @Transactional
+    public void deleteAllMembershipsForUser(User user) {
+        Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
+        groupMemberRepository.deleteAllByUser_Id(userId);
+    }
+
+    private void leaveMembership(GroupMember membership, ActivityUserRef leavingUserRef) {
+        Long groupId = membership.getGroup().getId();
+        deactivateMembershipAndCleanupGroup(membership);
+        activityService.logUserLeftGroup(groupId, leavingUserRef);
+        activityService.anonymizeUserInGroupHistory(groupId, leavingUserRef.userId());
     }
 
     private void deactivateMembershipAndCleanupGroup(GroupMember membership) {
@@ -378,6 +394,7 @@ public class GroupService {
             GroupMember newAdmin = groupMemberRepository.findFirstByGroup_IdAndActiveTrueOrderByJoinedAtAscIdAsc(groupId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Admin konnte nicht neu zugewiesen werden"));
             newAdmin.setRole(GroupRole.ADMIN);
+            groupMemberRepository.flush();
         }
     }
 

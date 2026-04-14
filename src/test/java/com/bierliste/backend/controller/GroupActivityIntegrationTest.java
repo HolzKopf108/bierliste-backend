@@ -23,6 +23,7 @@ import com.bierliste.backend.repository.GroupMemberRepository;
 import com.bierliste.backend.repository.GroupRepository;
 import com.bierliste.backend.repository.UserRepository;
 import com.bierliste.backend.security.JwtTokenProvider;
+import com.bierliste.backend.service.ActivityService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -105,10 +106,14 @@ class GroupActivityIntegrationTest {
         assertThat(activities).hasSize(2);
         assertThat(activities.get(0).getType()).isEqualTo(ActivityType.USER_LEFT_GROUP);
         assertThat(activities.get(1).getType()).isEqualTo(ActivityType.USER_JOINED_GROUP);
-        assertThat(activities.get(0).getActorUserId()).isEqualTo(member.getId());
-        assertThat(activities.get(0).getTargetUserId()).isEqualTo(member.getId());
-        assertThat(activities.get(0).getActorUsernameSnapshot()).isEqualTo("JoinMember");
-        assertThat(activities.get(0).getTargetUsernameSnapshot()).isEqualTo("JoinMember");
+        assertThat(activities.get(0).getActorUserId()).isNull();
+        assertThat(activities.get(0).getTargetUserId()).isNull();
+        assertThat(activities.get(0).getActorDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+        assertThat(activities.get(0).getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+        assertThat(activities.get(1).getActorUserId()).isNull();
+        assertThat(activities.get(1).getTargetUserId()).isNull();
+        assertThat(activities.get(1).getActorDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+        assertThat(activities.get(1).getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
         assertThat(activities.get(1).getMeta()).containsEntry("via", "INVITE");
     }
 
@@ -132,9 +137,159 @@ class GroupActivityIntegrationTest {
         assertThat(activities).hasSize(1);
         assertThat(activities.getFirst().getType()).isEqualTo(ActivityType.USER_REMOVED_FROM_GROUP);
         assertThat(activities.getFirst().getActorUserId()).isEqualTo(admin.getId());
-        assertThat(activities.getFirst().getTargetUserId()).isEqualTo(target.getId());
-        assertThat(activities.getFirst().getActorUsernameSnapshot()).isEqualTo("RemoveAdmin");
-        assertThat(activities.getFirst().getTargetUsernameSnapshot()).isEqualTo("RemoveTarget");
+        assertThat(activities.getFirst().getTargetUserId()).isNull();
+        assertThat(activities.getFirst().getActorDisplayNameSnapshot()).isEqualTo("RemoveAdmin");
+        assertThat(activities.getFirst().getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+    }
+
+    @Test
+    void leaveAnonymizesHistoricalActivitiesForLeavingUser() throws Exception {
+        User admin = createUser("activity-leave-anon-admin@example.com", "LeaveAdmin");
+        User member = createUser("activity-leave-anon-member@example.com", "LeaveMember");
+        Group group = createGroup("Leave Anon Verlauf", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, member, GroupRole.MEMBER);
+
+        Instant fixedTimestamp = Instant.parse("2026-03-21T12:00:00Z");
+        createActivity(group.getId(), ActivityType.USER_JOINED_GROUP, member, member, fixedTimestamp.minusSeconds(2), Map.of());
+        createActivity(
+            group.getId(),
+            ActivityType.STRICH_INCREMENTED,
+            admin,
+            member,
+            fixedTimestamp.minusSeconds(1),
+            Map.of("amount", 2, "mode", "OTHER")
+        );
+        createActivity(
+            group.getId(),
+            ActivityType.STRICH_INCREMENTED,
+            member,
+            admin,
+            fixedTimestamp,
+            Map.of("amount", 1, "mode", "OTHER")
+        );
+
+        String memberToken = jwtTokenProvider.createAccessToken(member);
+
+        mockMvc.perform(post("/api/v1/groups/" + group.getId() + "/leave")
+                .header("Authorization", "Bearer " + memberToken))
+            .andExpect(status().isOk());
+
+        List<GroupActivity> activities = groupActivityRepository.findAllByGroupIdOrderByTimestampDescIdDesc(group.getId());
+
+        assertThat(activities).hasSize(4);
+
+        GroupActivity leaveActivity = activities.stream()
+            .filter(activity -> activity.getType() == ActivityType.USER_LEFT_GROUP)
+            .findFirst()
+            .orElseThrow();
+        assertThat(leaveActivity.getActorUserId()).isNull();
+        assertThat(leaveActivity.getTargetUserId()).isNull();
+        assertThat(leaveActivity.getActorDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+        assertThat(leaveActivity.getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+
+        GroupActivity adminToMemberIncrement = activities.stream()
+            .filter(activity -> activity.getType() == ActivityType.STRICH_INCREMENTED)
+            .filter(activity -> activity.getActorDisplayNameSnapshot().equals("LeaveAdmin"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(adminToMemberIncrement.getActorUserId()).isEqualTo(admin.getId());
+        assertThat(adminToMemberIncrement.getTargetUserId()).isNull();
+        assertThat(adminToMemberIncrement.getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+
+        GroupActivity memberToAdminIncrement = activities.stream()
+            .filter(activity -> activity.getType() == ActivityType.STRICH_INCREMENTED)
+            .filter(activity -> activity.getTargetDisplayNameSnapshot().equals("LeaveAdmin"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(memberToAdminIncrement.getActorUserId()).isNull();
+        assertThat(memberToAdminIncrement.getActorDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+        assertThat(memberToAdminIncrement.getTargetUserId()).isEqualTo(admin.getId());
+
+        GroupActivity joinActivity = activities.stream()
+            .filter(activity -> activity.getType() == ActivityType.USER_JOINED_GROUP)
+            .findFirst()
+            .orElseThrow();
+        assertThat(joinActivity.getActorUserId()).isNull();
+        assertThat(joinActivity.getTargetUserId()).isNull();
+        assertThat(joinActivity.getActorDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+        assertThat(joinActivity.getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+    }
+
+    @Test
+    void removeAnonymizesHistoricalActivitiesForRemovedUser() throws Exception {
+        User admin = createUser("activity-remove-anon-admin@example.com", "RemoveAnonAdmin");
+        User target = createUser("activity-remove-anon-target@example.com", "RemoveAnonTarget");
+        Group group = createGroup("Remove Anon Verlauf", admin);
+
+        createMembership(group, admin, GroupRole.ADMIN);
+        createMembership(group, target, GroupRole.MEMBER);
+
+        Instant fixedTimestamp = Instant.parse("2026-03-22T12:00:00Z");
+        createActivity(group.getId(), ActivityType.USER_JOINED_GROUP, target, target, fixedTimestamp.minusSeconds(2), Map.of());
+        createActivity(
+            group.getId(),
+            ActivityType.STRICH_INCREMENTED,
+            admin,
+            target,
+            fixedTimestamp.minusSeconds(1),
+            Map.of("amount", 2, "mode", "OTHER")
+        );
+        createActivity(
+            group.getId(),
+            ActivityType.STRICH_INCREMENTED,
+            target,
+            admin,
+            fixedTimestamp,
+            Map.of("amount", 1, "mode", "OTHER")
+        );
+
+        String adminToken = jwtTokenProvider.createAccessToken(admin);
+
+        mockMvc.perform(delete("/api/v1/groups/" + group.getId() + "/members/" + target.getId())
+                .header("Authorization", "Bearer " + adminToken))
+            .andExpect(status().isNoContent());
+
+        List<GroupActivity> activities = groupActivityRepository.findAllByGroupIdOrderByTimestampDescIdDesc(group.getId());
+
+        assertThat(activities).hasSize(4);
+
+        GroupActivity removedActivity = activities.stream()
+            .filter(activity -> activity.getType() == ActivityType.USER_REMOVED_FROM_GROUP)
+            .findFirst()
+            .orElseThrow();
+        assertThat(removedActivity.getActorUserId()).isEqualTo(admin.getId());
+        assertThat(removedActivity.getActorDisplayNameSnapshot()).isEqualTo("RemoveAnonAdmin");
+        assertThat(removedActivity.getTargetUserId()).isNull();
+        assertThat(removedActivity.getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+
+        GroupActivity adminToTargetIncrement = activities.stream()
+            .filter(activity -> activity.getType() == ActivityType.STRICH_INCREMENTED)
+            .filter(activity -> activity.getActorDisplayNameSnapshot().equals("RemoveAnonAdmin"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(adminToTargetIncrement.getActorUserId()).isEqualTo(admin.getId());
+        assertThat(adminToTargetIncrement.getTargetUserId()).isNull();
+        assertThat(adminToTargetIncrement.getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+
+        GroupActivity targetToAdminIncrement = activities.stream()
+            .filter(activity -> activity.getType() == ActivityType.STRICH_INCREMENTED)
+            .filter(activity -> activity.getTargetDisplayNameSnapshot().equals("RemoveAnonAdmin"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(targetToAdminIncrement.getActorUserId()).isNull();
+        assertThat(targetToAdminIncrement.getActorDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+        assertThat(targetToAdminIncrement.getTargetUserId()).isEqualTo(admin.getId());
+
+        GroupActivity joinActivity = activities.stream()
+            .filter(activity -> activity.getType() == ActivityType.USER_JOINED_GROUP)
+            .findFirst()
+            .orElseThrow();
+        assertThat(joinActivity.getActorUserId()).isNull();
+        assertThat(joinActivity.getTargetUserId()).isNull();
+        assertThat(joinActivity.getActorDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
+        assertThat(joinActivity.getTargetDisplayNameSnapshot()).isEqualTo(ActivityService.FORMER_MEMBER_DISPLAY_NAME);
     }
 
     @Test
@@ -383,7 +538,7 @@ class GroupActivityIntegrationTest {
             .andExpect(jsonPath("$.items[0].id").value(third.getId()))
             .andExpect(jsonPath("$.items[0].type").value("GROUP_SETTINGS_CHANGED"))
             .andExpect(jsonPath("$.items[0].actor.userId").value(admin.getId()))
-            .andExpect(jsonPath("$.items[0].actor.usernameSnapshot").value("EndpointAdmin"))
+            .andExpect(jsonPath("$.items[0].actor.displayNameSnapshot").value("EndpointAdmin"))
             .andExpect(jsonPath("$.items[0].actor.email").doesNotExist())
             .andExpect(jsonPath("$.items[0].meta").doesNotExist())
             .andExpect(jsonPath("$.items[0].changedFields[0]").value("NAME"))
@@ -393,7 +548,7 @@ class GroupActivityIntegrationTest {
             .andExpect(jsonPath("$.items[1].id").value(second.getId()))
             .andExpect(jsonPath("$.items[1].type").value("STRICH_INCREMENTED"))
             .andExpect(jsonPath("$.items[1].target.userId").value(target.getId()))
-            .andExpect(jsonPath("$.items[1].target.usernameSnapshot").value("EndpointTarget"))
+            .andExpect(jsonPath("$.items[1].target.displayNameSnapshot").value("EndpointTarget"))
             .andExpect(jsonPath("$.items[1].target.email").doesNotExist())
             .andExpect(jsonPath("$.items[1].meta").doesNotExist())
             .andExpect(jsonPath("$.items[1].amount").value(1))
@@ -484,9 +639,9 @@ class GroupActivityIntegrationTest {
         activity.setGroupId(groupId);
         activity.setTimestamp(timestamp);
         activity.setActorUserId(actor.getId());
-        activity.setActorUsernameSnapshot(actor.getUsername());
+        activity.setActorDisplayNameSnapshot(actor.getUsername());
         activity.setTargetUserId(target != null ? target.getId() : null);
-        activity.setTargetUsernameSnapshot(target != null ? target.getUsername() : null);
+        activity.setTargetDisplayNameSnapshot(target != null ? target.getUsername() : null);
         activity.setType(type);
         activity.setMeta(meta);
         return groupActivityRepository.save(activity);

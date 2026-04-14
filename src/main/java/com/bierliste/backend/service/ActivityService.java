@@ -47,6 +47,7 @@ public class ActivityService {
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 100;
     private static final int META_VERSION = 1;
+    public static final String FORMER_MEMBER_DISPLAY_NAME = "Ehemaliges Mitglied";
 
     private final GroupActivityRepository groupActivityRepository;
     private final UserRepository userRepository;
@@ -241,6 +242,16 @@ public class ActivityService {
         );
     }
 
+    @Transactional
+    public void anonymizeUserInGroupHistory(Long groupId, Long userId) {
+        groupActivityRepository.anonymizeUserInGroupHistory(groupId, userId, FORMER_MEMBER_DISPLAY_NAME);
+    }
+
+    @Transactional
+    public void anonymizeUserInAllGroupHistories(Long userId) {
+        groupActivityRepository.anonymizeUserInAllGroupHistories(userId, FORMER_MEMBER_DISPLAY_NAME);
+    }
+
     private GroupActivity saveActivity(
         Long groupId,
         ActivityType type,
@@ -253,9 +264,9 @@ public class ActivityService {
         activity.setGroupId(groupId);
         activity.setType(type);
         activity.setActorUserId(resolvedActor.userId());
-        activity.setActorUsernameSnapshot(resolvedActor.usernameSnapshot());
+        activity.setActorDisplayNameSnapshot(resolvedActor.displayNameSnapshot());
         activity.setTargetUserId(target != null ? requireUserRef(target).userId() : null);
-        activity.setTargetUsernameSnapshot(target != null ? requireUserRef(target).usernameSnapshot() : null);
+        activity.setTargetDisplayNameSnapshot(target != null ? requireUserRef(target).displayNameSnapshot() : null);
         activity.setMetaVersion(META_VERSION);
         activity.setMeta(meta);
         return groupActivityRepository.save(activity);
@@ -390,10 +401,10 @@ public class ActivityService {
         dto.setId(activity.getId());
         dto.setTimestamp(activity.getTimestamp());
         dto.setType(activity.getType());
-        dto.setActor(new GroupActivityUserDto(activity.getActorUserId(), activity.getActorUsernameSnapshot()));
-        dto.setTarget(activity.getTargetUserId() == null
+        dto.setActor(new GroupActivityUserDto(activity.getActorUserId(), activity.getActorDisplayNameSnapshot()));
+        dto.setTarget(activity.getTargetDisplayNameSnapshot() == null
             ? null
-            : new GroupActivityUserDto(activity.getTargetUserId(), activity.getTargetUsernameSnapshot()));
+            : new GroupActivityUserDto(activity.getTargetUserId(), activity.getTargetDisplayNameSnapshot()));
         return dto;
     }
 
