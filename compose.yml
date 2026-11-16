@@ -3,7 +3,12 @@ services:
     build: .
     container_name: ${BACKEND_CONTAINER_NAME}
     restart: unless-stopped
+
+    mem_limit: 512m
+    memswap_limit: 768m
+
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=25"
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
