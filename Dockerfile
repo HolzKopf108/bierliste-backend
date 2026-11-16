@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jdk-alpine
+FROM eclipse-temurin:27-jre-alpine
 VOLUME /tmp
 COPY backend.jar app.jar
 ENTRYPOINT ["java", "-jar", "/app.jar"]

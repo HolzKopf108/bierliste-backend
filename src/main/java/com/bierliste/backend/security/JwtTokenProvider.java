@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import com.bierliste.backend.model.User;
 import com.bierliste.backend.repository.UserRepository;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -25,7 +25,7 @@ public class JwtTokenProvider {
     private final UserRepository userRepository;
     private final String secret;
     private final long accessExpMs;
-    private Key signingKey;
+    private SecretKey signingKey;
 
     public JwtTokenProvider(
             UserRepository userRepository,
@@ -47,20 +47,20 @@ public class JwtTokenProvider {
         Date expiry = new Date(now.getTime() + accessExpMs);
 
         return Jwts.builder()
-                .setSubject(user.getId().toString())
+                .subject(user.getId().toString())
                 .claim("username", user.getUsername())
-                .setIssuedAt(now)
-                .setExpiration(expiry)
-                .signWith(signingKey, SignatureAlgorithm.HS256)
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(signingKey, Jwts.SIG.HS256)
                 .compact();
     }
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder()
-                .setSigningKey(signingKey)
+            Jwts.parser()
+                .verifyWith(signingKey)
                 .build()
-                .parseClaimsJws(token);
+                .parseSignedClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
             return false;
@@ -68,11 +68,11 @@ public class JwtTokenProvider {
     }
 
     public Long getUserId(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(signingKey)
+        Claims claims = Jwts.parser()
+                .verifyWith(signingKey)
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
         return Long.parseLong(claims.getSubject());
     }
 

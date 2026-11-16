@@ -1,7 +1,7 @@
 ## Projektüberblick
 Dieses Repository enthält das Backend für die Bierlisten-App. Aktueller Funktionsumfang: Registrierung/Login (inkl. E-Mail-Verifizierung), JWT-Auth mit Refresh Tokens, Google Login, User-Profileinstellungen sowie Gruppen mit Mitgliedschaften und gruppenbezogenen Strichzählern.
 
-Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Data JPA. Die Datenbank-Konfiguration erfolgt per Umgebungsvariablen, E-Mails werden über den Brevo-API-Client versendet, und es gibt keine automatische API-Dokumentation oder Migrationen.
+Technisch basiert das Projekt auf Spring Boot 4.1, Java 27, Gradle und Spring Data JPA. Die Datenbank-Konfiguration erfolgt per Umgebungsvariablen, E-Mails werden über den Brevo-API-Client versendet. OpenAPI wird beim Build generiert. Details zum aktuellen Dependency-Stand und zur Migration stehen in [DEPENDENCY_UPGRADE.md](DEPENDENCY_UPGRADE.md).
 
 ## Feature-Matrix (Ist-Stand)
 | Bereich | Status | Evidenz (Datei/Klasse) | Notiz |
@@ -424,7 +424,7 @@ Hinweis: Test-Endpunkt sendet eine E-Mail an eine im Code hardcodierte Adresse (
 ## Setup & Run
 
 ### Voraussetzungen
-- Java 21
+- Java 27
 - Gradle (Wrapper vorhanden)
 - Datenbank: PostgreSQL (empfohlen).
 - Optional: Docker/Compose

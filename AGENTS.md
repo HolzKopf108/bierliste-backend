@@ -3,8 +3,8 @@
 ## Projekt
 Dieses Repository enthält das Backend der Bierliste-App.
 Tech-Stack:
-- Java 21
-- Spring Boot 3.5
+- Java 27
+- Spring Boot 4.1
 - Spring Web
 - Spring Data JPA
 - Spring Security

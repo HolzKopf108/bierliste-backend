@@ -1,8 +1,8 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.5.0'
+	id 'org.springframework.boot' version '4.1.2'
 	id 'io.spring.dependency-management' version '1.1.7'
-	id 'org.springdoc.openapi-gradle-plugin' version '1.9.0'
+	id 'org.springdoc.openapi-gradle-plugin' version '2.1.0'
 }
 
 group = 'com.bierliste'
@@ -10,56 +10,56 @@ version = '0.0.1-SNAPSHOT'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
+		languageVersion = JavaLanguageVersion.of(27)
 	}
 }
 
 repositories {
 	mavenCentral()
-	flatDir {
-        dirs 'libs'
-    }
 }
 
 dependencies {
 	// Spring Boot
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	implementation 'org.springframework.boot:spring-boot-starter-restclient'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testImplementation 'org.springframework.security:spring-security-test'
 
 	// OpenAPI / Swagger UI
-	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.11'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
 
 	// DB
 	runtimeOnly 'org.postgresql:postgresql'
-	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'com.h2database:h2:2.5.252'
 
 	// JWT
-	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
-	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
-	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+	implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
 
 	// Brevo SDK + transitive Dependencies
-	implementation name: 'brevo-1.0.0'                             // Lokale JAR im libs-Ordner
-	implementation 'com.squareup.okhttp3:okhttp:4.12.0'           // HTTP-Client
-	implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0' // Optional, falls im Brevo-Client aktiviert
-	implementation 'com.google.code.gson:gson:2.10.1'             // JSON-Mapping
-	implementation 'io.gsonfire:gson-fire:1.8.5'                  // Gson-Adapter-Erweiterung
-	implementation 'org.threeten:threetenbp:1.6.6'                // Für Datum/Zeit-Typen
-	implementation 'org.apache.commons:commons-lang3:3.12.0'      // Utility-Klassen (z. B. `StringUtils`)
+	implementation 'com.brevo:brevo:1.1.11'
+	implementation 'com.squareup.okhttp3:okhttp:5.5.1'           // HTTP-Client
+	implementation 'com.squareup.okhttp3:logging-interceptor:5.5.1' // Optional, falls im Brevo-Client aktiviert
+	implementation 'com.google.code.gson:gson:2.15.0'             // JSON-Mapping
+	implementation 'io.gsonfire:gson-fire:1.9.0'                  // Gson-Adapter-Erweiterung
+	implementation 'org.threeten:threetenbp:1.7.5'                // Für Datum/Zeit-Typen
+	implementation 'org.apache.commons:commons-lang3:3.22.0'      // Utility-Klassen (z. B. `StringUtils`)
 	implementation 'javax.annotation:javax.annotation-api:1.3.2'  // Annotations wie `@Generated`
 
 	// Google OAuth
-	implementation 'com.google.api-client:google-api-client:2.5.0'
-    implementation 'com.google.oauth-client:google-oauth-client:1.34.1'
-    implementation 'com.google.api-client:google-api-client-gson:2.5.0'
-	implementation 'com.google.auth:google-auth-library-oauth2-http:1.23.0'
+	implementation 'com.google.api-client:google-api-client:2.9.2'
+    implementation 'com.google.oauth-client:google-oauth-client:1.39.0'
+    implementation 'com.google.api-client:google-api-client-gson:2.9.2'
+	implementation 'com.google.auth:google-auth-library-oauth2-http:1.57.0'
+	implementation 'com.google.guava:guava:33.8.0-jre'
 }
 
 openApi {
