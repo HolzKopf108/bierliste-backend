@@ -210,11 +210,20 @@ public class GroupService {
 
     @Transactional
     public CounterIncrementResponseDto incrementOwnCounterForGroup(Long groupId, CounterIncrementDto dto, User user) {
+        return incrementOwnCounter(groupId, dto.getAmount(), user);
+    }
+
+    @Transactional
+    public CounterIncrementResponseDto incrementOwnCounterForSync(Long groupId, int amount, User user) {
+        return incrementOwnCounter(groupId, amount, user);
+    }
+
+    private CounterIncrementResponseDto incrementOwnCounter(Long groupId, int amount, User user) {
         Long userId = groupAuthorizationService.requireAuthenticatedUserId(user);
         GroupMember membership = groupMemberRepository.findByGroup_IdAndUser_IdAndActiveTrueForUpdate(groupId, userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, GROUP_NOT_FOUND_MESSAGE));
 
-        return createCounterIncrement(groupId, membership, membership, dto.getAmount());
+        return createCounterIncrement(groupId, membership, membership, amount);
     }
 
     @Transactional

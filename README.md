@@ -16,17 +16,18 @@ Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Da
 | Gruppen & Mitgliederverwaltung | Implementiert | GroupController, GroupService, Group, GroupMember | Aktive Memberships sind sichtbar; Leave/Remove nutzt Soft-Delete via `active=false`, `leftAt` |
 | Einladungen zu Gruppen | Fehlt | - | - |
 | Striche pro Gruppe/History | Teilweise | GroupController, GroupService, GroupMember | Gruppenbezogener Counter vorhanden, keine History |
+| Offline-Sync | Implementiert | SyncController, SyncService, ProcessedClientEvent | Batch-Event-Queue mit Idempotency Key fuer `INCREMENT_SELF` |
 | Rollen/Admin pro Gruppe | Implementiert | GroupRole, GroupMember, GroupAuthorizationService | `ADMIN` und `MEMBER` werden in Mitgliedschaften geprüft |
 | OpenAPI/Swagger | Fehlt | - | Keine automatische API-Doku |
 
 ## Architektur und Module
 | Package | Zweck | Zentrale Komponenten |
 | --- | --- | --- |
-| controller | REST Endpunkte | AuthController, UserController, UserSettingsController, GroupController, PingController, TestController |
-| service | Geschäftslogik | AuthService, UserService, UserSettingsService, RefreshTokenService, VerificationService, EmailService, BrevoEmailService |
-| repository | Persistenz (JPA) | UserRepository, UserSettingsRepository, RefreshTokenRepository, VerificationTokenRepository, GroupRepository, GroupMemberRepository |
-| model | JPA Entities | User, UserSettings, RefreshToken, VerificationToken, Group, GroupMember |
-| dto | Request/Response DTOs | RegisterDto, LoginDto, GoogleLoginDto, UserDto, UserPasswordDto, UserSettingsDto, CounterIncrementDto, CounterResponseDto |
+| controller | REST Endpunkte | AuthController, UserController, UserSettingsController, GroupController, SyncController, PingController, TestController |
+| service | Geschäftslogik | AuthService, UserService, UserSettingsService, SyncService, RefreshTokenService, VerificationService, EmailService, BrevoEmailService |
+| repository | Persistenz (JPA) | UserRepository, UserSettingsRepository, RefreshTokenRepository, VerificationTokenRepository, GroupRepository, GroupMemberRepository, ProcessedClientEventRepository |
+| model | JPA Entities | User, UserSettings, RefreshToken, VerificationToken, Group, GroupMember, ProcessedClientEvent |
+| dto | Request/Response DTOs | RegisterDto, LoginDto, GoogleLoginDto, UserDto, UserPasswordDto, UserSettingsDto, CounterIncrementDto, CounterResponseDto, SyncEventsRequestDto |
 | security | JWT + Auth Filter | JwtTokenProvider, JwtAuthenticationFilter, CustomUserDetailsService |
 | config | Spring Konfiguration | SecurityConfig, WebConfig |
 | exception | Fehlerbehandlung | GlobalExceptionHandler |
@@ -39,6 +40,7 @@ Technisch basiert das Projekt auf Spring Boot 3.5, Java 21, Gradle und Spring Da
 | RefreshToken (refresh_tokens) | token (unique), user_id, expiryDate | 1:1 zu User |
 | VerificationToken (verification_tokens) | code (6-stellig), user_id, expiryDate | 1:1 zu User |
 | GroupMember (group_members) | group_id, user_id, role, joinedAt, strichCount | n:1 zu Group, n:1 zu User |
+| ProcessedClientEvent (processed_client_event) | client_event_id (PK), user_id, event_type, group_id, processed_at, result_json | Deduplication-Tabelle fuer erfolgreich angewendete Sync-Events |
 
 Hinweis: Es gibt keine Migrationen (Flyway/Liquibase). Das Schema wird via `spring.jpa.hibernate.ddl-auto=update` automatisch angepasst.
 
@@ -111,8 +113,69 @@ Zeitformat für `Instant`: ISO-8601, z.B. `2026-01-25T12:34:56Z`
 | GET | /groups/{groupId}/me/role | ja | - | - | GroupRoleDto {role} |
 | POST | /groups/{groupId}/roles/promote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |
 | POST | /groups/{groupId}/roles/demote | ja | - | PromoteGroupMemberDto {targetUserId} | GroupMemberDto |
+| POST | /sync/events | ja | - | SyncEventsRequestDto {events[]} | SyncEventsResponseDto {results[]} |
 | GET | /ping | nein | - | - | {status} |
 | GET | /email | ja | - | - | "OK" (text/plain, Test) |
+
+### Sync-API
+`POST /api/v1/sync/events` verarbeitet offline erzeugte Client-Events als Batch. Auth ist erforderlich. Events werden in Request-Reihenfolge verarbeitet; der Client sollte seine lokale Queue daher bereits in der gewuenschten Reihenfolge senden. Der Batch ist nicht all-or-nothing: jedes Event erhaelt ein eigenes Ergebnis.
+
+Aktuell unterstuetzter Event-Typ:
+- `INCREMENT_SELF`: erhoeht den eigenen Strichzaehler in `groupId` um `payload.amount`.
+
+Request:
+```json
+{
+  "events": [
+    {
+      "clientEventId": "1e51af7e-2d65-4e89-b01f-bb6b9c5e95ef",
+      "type": "INCREMENT_SELF",
+      "groupId": 42,
+      "payload": {
+        "amount": 2
+      },
+      "clientTimestamp": "2026-01-25T12:34:56Z"
+    }
+  ]
+}
+```
+
+Response:
+```json
+{
+  "results": [
+    {
+      "clientEventId": "1e51af7e-2d65-4e89-b01f-bb6b9c5e95ef",
+      "status": "applied",
+      "statusCode": 200,
+      "serverStateDelta": {
+        "groupId": 42,
+        "count": 7,
+        "incrementRequestId": 123,
+        "undoExpiresAt": "2026-01-25T12:35:26Z"
+      }
+    }
+  ]
+}
+```
+
+Statuswerte pro Event:
+- `applied`: Event wurde angewendet und in `processed_client_event` gespeichert.
+- `duplicate`: `clientEventId` war fuer denselben User bereits verarbeitet; es gibt keine erneute Nebenwirkung.
+- `failed`: Event wurde nicht angewendet. `statusCode`, `error` und `resolution` beschreiben den Grund.
+
+Fehlerregeln:
+- Ungueltiger `type`, fehlendes Payload oder `amount < 1`: `failed`, `statusCode` 400, `resolution` `drop`.
+- Gruppe existiert nicht oder User ist kein aktives Mitglied: `failed`, `statusCode` 404, `resolution` `drop`.
+- `clientEventId` wurde bereits fuer einen anderen User verarbeitet: `failed`, `statusCode` 409, `resolution` `drop`.
+- Unerwartete technische Fehler: `failed`, `statusCode` 500, `resolution` `retry`.
+- Preis-pro-Strich-Aenderungen betreffen `INCREMENT_SELF` nicht direkt; zukuenftige geldbezogene Events muessen dafuer eigene Snapshot-/Konfliktregeln definieren.
+
+Deduplication und Retention:
+- Erfolgreich angewendete Events werden mit `clientEventId` als Primaerschluessel in `processed_client_event` gespeichert.
+- Das gespeicherte `result_json` enthaelt den relevanten Server-State fuer Duplicate-Antworten.
+- Fehlgeschlagene Events werden nicht als verarbeitet gespeichert; der Client entscheidet anhand `resolution`, ob das lokale Event verworfen oder spaeter erneut versucht wird.
+- Die Aufbewahrung laeuft ueber `app.sync.processed-event-retention` (Default `P90D`). `DataCleanupService` entfernt aeltere Eintraege im regulaeren Cleanup-Job. Clients sollten Events innerhalb dieser Frist synchronisieren, weil danach keine Idempotenz-Garantie fuer alte IDs mehr besteht.
 
 ### Beispiele
 #### POST /auth/register
